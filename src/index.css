@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    font-family: 'Quicksand', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Be Vietnam Pro', 'Quicksand', system-ui, sans-serif;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Pastel range slider styling for comfortable mobile thumb touch */
+input[type='range'].pastel-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 9999px;
+  outline: none;
+}
+
+input[type='range'].pastel-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #ffb6c1;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(91, 35, 51, 0.22);
+  cursor: pointer;
+}
+
+.dark input[type='range'].pastel-slider::-webkit-slider-thumb {
+  border-color: #251d24;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+input[type='range'].pastel-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #ffb6c1;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(91, 35, 51, 0.22);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

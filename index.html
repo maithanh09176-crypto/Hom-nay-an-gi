@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Nay ăn gì nhỉ? 🍜</title>
+    <meta name="description" content="Không biết ăn gì thì để vũ trụ chọn hộ! 100 món ăn sinh viên Hà Nội kèm bộ lọc ngân sách, tâm trạng và gợi ý combo." />
+    <meta property="og:title" content="Nay ăn gì nhỉ? 🍜" />
+    <meta property="og:description" content="Không biết ăn gì thì để vũ trụ chọn hộ! 100 món ăn sinh viên Hà Nội kèm bộ lọc ngân sách, tâm trạng và gợi ý combo." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#FFEAF0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Nay ăn gì?" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('nayan_theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#FFFDF8] text-[#2D2229] dark:bg-[#1A1419] dark:text-[#FDF7F9] antialiased selection:bg-[#FFB6C1]/40">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
