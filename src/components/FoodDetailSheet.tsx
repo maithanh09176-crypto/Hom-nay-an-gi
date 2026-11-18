@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { Check, Heart, X } from 'lucide-react';
 import type { FoodItem, MealTime } from '../types/food';
-import { CATEGORY_LABELS, GROUP_LABELS } from '../data/foods';
-import { formatPriceRange } from '../utils/foodLogic';
+import { CATEGORY_LABELS, MEAL_KIND_LABELS } from '../data/foods';
+import { formatKPrice, formatPriceRange } from '../utils/foodLogic';
 import { DishImage } from './DishImage';
 
 const MEAL_TIME_LABELS: Record<MealTime, string> = {
@@ -74,7 +74,7 @@ export const FoodDetailSheet: React.FC<FoodDetailSheetProps> = ({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-medium text-[#6E5B65] dark:text-[#CBBBC4]">
-                  {GROUP_LABELS[food.group]} · {CATEGORY_LABELS[food.category]}
+                  {MEAL_KIND_LABELS[food.mealKind]} · {CATEGORY_LABELS[food.category]}
                   {food.isVegetarian ? ' · Món chay' : ''}
                 </p>
                 <h2
@@ -84,9 +84,16 @@ export const FoodDetailSheet: React.FC<FoodDetailSheetProps> = ({
                   {food.name}
                 </h2>
               </div>
-              <span className="shrink-0 text-base font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]">
-                {formatPriceRange(food.minPrice, food.maxPrice)}
-              </span>
+              <div className="shrink-0 text-right">
+                <span className="block text-base font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]">
+                  {formatPriceRange(food.minPrice, food.maxPrice)}
+                </span>
+                {food.typicalPrice !== undefined && (
+                  <span className="block text-[11px] font-medium tabular-nums text-[#6E5B65] dark:text-[#CBBBC4]">
+                    Phổ biến ~{formatKPrice(food.typicalPrice)}
+                  </span>
+                )}
+              </div>
             </div>
 
             <p className="mt-2.5 text-sm leading-relaxed text-[#4A3B43] dark:text-[#E5D7DF]">
@@ -98,8 +105,9 @@ export const FoodDetailSheet: React.FC<FoodDetailSheetProps> = ({
               <span className="font-semibold text-[#2D2229] dark:text-[#FDF7F9]">
                 {food.mealTypes.map((m) => MEAL_TIME_LABELS[m]).join(' · ')}
               </span>
-              <span className="mx-1.5" aria-hidden="true">·</span>
-              <span>Giá tham khảo bình dân Hà Nội</span>
+            </p>
+            <p className="mt-1 text-[11px] text-[#8C7782] dark:text-[#B8A5B0]">
+              Giá tham khảo, tùy quán và khẩu phần.
             </p>
 
             <div className="mt-5 flex items-center gap-2.5">

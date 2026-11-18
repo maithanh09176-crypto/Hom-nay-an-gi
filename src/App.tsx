@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Moon, Sun, WifiOff } from 'lucide-react';
 import { FOODS } from './data/foods';
 import type { FoodItem, HistoryEntry } from './types/food';
+import { shuffleFoodsFisherYates } from './utils/foodLogic';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import { useOnlineStatus } from './hooks/usePWAInstall';
 import { BottomNav, type AppTab } from './components/BottomNav';
@@ -14,6 +15,9 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [shuffledFoods, setShuffledFoods] = useState<FoodItem[]>(() =>
+    shuffleFoodsFisherYates(FOODS)
+  );
   const [favoriteIds, setFavoriteIds] = useLocalStorageState<number[]>('nayan_favorites', []);
   const [history, setHistory] = useLocalStorageState<HistoryEntry[]>('nayan_history', []);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -53,6 +57,11 @@ export default function App() {
     const timer = window.setTimeout(() => setToastText(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toastText]);
+
+  const handleReshuffleMenu = () => {
+    setShuffledFoods(shuffleFoodsFisherYates(FOODS));
+    setToastText('Đã xáo trộn lại thực đơn 120 món rồi nè! 🔀');
+  };
 
   const handleToggleFavorite = (id: number) => {
     setFavoriteIds((prev) => {
@@ -129,7 +138,7 @@ export default function App() {
         >
           <div className="rounded-2xl bg-[#FFF4D6] dark:bg-[#3A2F1C] border border-[#F2D06B]/60 px-3.5 py-2 text-xs font-semibold text-[#6E4F12] dark:text-[#FCE39D] flex items-center gap-2">
             <WifiOff className="w-4 h-4 shrink-0" />
-            <span>Đang offline — Dữ liệu 100 món và lịch sử vẫn dùng bình thường nha!</span>
+            <span>Đang offline — Dữ liệu 120 món và lịch sử vẫn dùng bình thường nha!</span>
           </div>
         </div>
       )}
@@ -138,6 +147,7 @@ export default function App() {
         {activeTab === 'home' && (
           <HomeView
             foods={FOODS}
+            shuffledFoods={shuffledFoods}
             favoriteIds={favoriteIds}
             reducedMotion={reducedMotion}
             onToggleFavorite={handleToggleFavorite}
@@ -148,10 +158,11 @@ export default function App() {
 
         {activeTab === 'menu' && (
           <MenuView
-            foods={FOODS}
+            foods={shuffledFoods}
             favoriteIds={favoriteIds}
             onToggleFavorite={handleToggleFavorite}
             onSelectFood={setDetailFood}
+            onReshuffle={handleReshuffleMenu}
           />
         )}
 

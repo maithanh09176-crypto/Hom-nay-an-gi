@@ -17,7 +17,7 @@ export default defineConfig(() => {
           id: '/',
           name: 'Nay ăn gì nhỉ? 🍜',
           short_name: 'Nay ăn gì?',
-          description: 'Không biết ăn gì thì để vũ trụ chọn hộ! 100 món ăn sinh viên kèm bộ lọc ngân sách và gợi ý combo.',
+          description: 'Không biết ăn gì thì để vũ trụ chọn hộ! 120 món ăn sinh viên kèm bộ lọc ngân sách và gợi ý combo.',
           theme_color: '#FFEAF0',
           background_color: '#FFFDF8',
           display: 'standalone',

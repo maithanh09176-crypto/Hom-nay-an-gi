@@ -1,6 +1,6 @@
 {
   "name": "Nay ăn gì nhỉ? 🍜",
-  "description": "Không biết ăn gì thì để vũ trụ chọn hộ! 100 món ăn sinh viên Hà Nội kèm bộ lọc ngân sách, tâm trạng và gợi ý combo.",
+  "description": "Không biết ăn gì thì để vũ trụ chọn hộ! 120 món ăn sinh viên Hà Nội kèm bộ lọc ngân sách nghiêm ngặt, gu Gen Z và gợi ý combo.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

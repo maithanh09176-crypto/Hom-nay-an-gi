@@ -245,6 +245,67 @@ export const DishIllustration: React.FC<DishIllustrationProps> = ({
             <circle cx="120" cy="40" r="5.5" fill="#E11D48" />
           </g>
         )}
+
+        {vessel === 'pizza' && (
+          <g>
+            <ellipse cx="120" cy="138" rx="64" ry="13" fill="#000000" fillOpacity="0.08" />
+            <ellipse cx="120" cy="98" rx="64" ry="42" fill="#E8B872" stroke="#5B2333" strokeWidth="3" />
+            <ellipse cx="120" cy="98" rx="54" ry="34" fill="#FFD97D" stroke="#D98A3C" strokeWidth="2" />
+            <path d="M120 64 L120 132 M66 98 L174 98" stroke="#D99B48" strokeWidth="2" strokeOpacity="0.55" />
+            <circle cx="98" cy="84" r="8" fill={mainColor} />
+            <circle cx="140" cy="86" r="8" fill={mainColor} />
+            <circle cx="100" cy="112" r="7" fill={mainColor} />
+            <circle cx="140" cy="110" r="7" fill={mainColor} />
+            <circle cx="120" cy="98" r="5" fill={garnishColor} />
+          </g>
+        )}
+
+        {vessel === 'burger' && (
+          <g>
+            <ellipse cx="120" cy="138" rx="54" ry="12" fill="#000000" fillOpacity="0.08" />
+            <path d="M72 114 H168 C168 128, 72 128, 72 114 Z" fill="#E5A55D" stroke="#5B2333" strokeWidth="3" />
+            <rect x="68" y="102" width="104" height="12" rx="6" fill={mainColor} stroke="#5B2333" strokeWidth="2.5" />
+            <path d="M68 96 Q84 106 100 96 T136 96 T172 96" fill="none" stroke={garnishColor} strokeWidth="6" strokeLinecap="round" />
+            <path d="M72 90 C72 56, 168 56, 168 90 Z" fill="#EAA862" stroke="#5B2333" strokeWidth="3" />
+            <circle cx="104" cy="74" r="2.5" fill="#FFFDF8" />
+            <circle cx="124" cy="70" r="2.5" fill="#FFFDF8" />
+            <circle cx="138" cy="78" r="2.5" fill="#FFFDF8" />
+          </g>
+        )}
+
+        {vessel === 'fried-chicken' && (
+          <g>
+            <ellipse cx="120" cy="136" rx="60" ry="12" fill="#000000" fillOpacity="0.08" />
+            <ellipse cx="120" cy="98" rx="64" ry="34" fill="#FFFDF8" stroke="#5B2333" strokeWidth="3" />
+            <path d="M76 92 C76 74, 114 70, 126 88 C134 98, 124 114, 102 114 C84 114, 76 104, 76 92 Z" fill={mainColor} stroke="#5B2333" strokeWidth="2.5" />
+            <rect x="122" y="92" width="24" height="10" rx="5" fill="#FFF2DC" stroke="#5B2333" strokeWidth="2" transform="rotate(14 134 97)" />
+            <circle cx="146" cy="84" r="14" fill={accentColor} stroke="#5B2333" strokeWidth="2.5" />
+          </g>
+        )}
+
+        {vessel === 'seafood-bowl' && (
+          <g>
+            <ellipse cx="120" cy="138" rx="56" ry="12" fill="#000000" fillOpacity="0.08" />
+            <path d="M56 88 C58 130, 86 144, 120 144 C154 144, 182 130, 184 88 Z" fill="#C5E8D5" stroke="#5B2333" strokeWidth="3" />
+            <ellipse cx="120" cy="88" rx="64" ry="20" fill="#FFFDF8" stroke="#5B2333" strokeWidth="3" />
+            <ellipse cx="102" cy="86" rx="14" ry="10" fill={mainColor} stroke="#5B2333" strokeWidth="2" />
+            <ellipse cx="136" cy="88" rx="14" ry="10" fill={accentColor} stroke="#5B2333" strokeWidth="2" />
+            <circle cx="118" cy="94" r="9" fill={mainColor} stroke="#5B2333" strokeWidth="2" />
+            <path d="M90 78 Q120 72 150 80" fill="none" stroke={garnishColor} strokeWidth="4" strokeLinecap="round" />
+          </g>
+        )}
+
+        {vessel === 'skewer' && (
+          <g>
+            <ellipse cx="120" cy="136" rx="60" ry="12" fill="#000000" fillOpacity="0.08" />
+            <ellipse cx="120" cy="98" rx="64" ry="34" fill="#FFFDF8" stroke="#5B2333" strokeWidth="3" />
+            <path d="M62 114 L172 72" stroke="#8C5A3C" strokeWidth="4" strokeLinecap="round" />
+            <path d="M70 122 L180 80" stroke="#8C5A3C" strokeWidth="4" strokeLinecap="round" />
+            <rect x="88" y="88" width="22" height="16" rx="6" fill={mainColor} stroke="#5B2333" strokeWidth="2" transform="rotate(-20 99 96)" />
+            <rect x="114" y="78" width="22" height="16" rx="6" fill={accentColor} stroke="#5B2333" strokeWidth="2" transform="rotate(-20 125 86)" />
+            <rect x="110" y="96" width="22" height="16" rx="6" fill={mainColor} stroke="#5B2333" strokeWidth="2" transform="rotate(-20 121 104)" />
+          </g>
+        )}
       </g>
     </svg>
   );

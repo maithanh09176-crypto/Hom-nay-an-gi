@@ -3,26 +3,44 @@ export type FoodCategory =
   | 'bun-pho'
   | 'banh-xoi'
   | 'mon-chinh-khac'
+  | 'pizza'
+  | 'ga-ran'
+  | 'hai-san'
+  | 'do-tay'
   | 'an-vat'
   | 'trang-mieng';
 
-export type FoodGroup = 'main' | 'snack' | 'dessert';
+export type MealKind = 'main' | 'snack' | 'dessert';
 
-export type FoodMode = 'main' | 'snack' | 'dessert' | 'all';
+export type FoodMode = MealKind | 'all';
 
 export type MealTime = 'sang' | 'trua' | 'toi';
 
 export type MealTimeFilter = MealTime | 'any';
 
-export type MoodId =
-  | 'tired-light'
-  | 'starving'
-  | 'budget-saver'
-  | 'treat-yourself'
-  | 'sweet-tooth'
-  | 'random-any';
+export type VibeFilterId =
+  | 'all'
+  | 'warm'
+  | 'spicy'
+  | 'crispy'
+  | 'seafood'
+  | 'western'
+  | 'street-food'
+  | 'budget'
+  | 'sweet';
 
-export type MoodTag = 'light' | 'filling' | 'budget' | 'treat' | 'sweet' | 'warm' | 'crispy';
+export type FoodTag =
+  | 'light'
+  | 'filling'
+  | 'budget'
+  | 'treat'
+  | 'sweet'
+  | 'warm'
+  | 'crispy'
+  | 'spicy'
+  | 'seafood'
+  | 'western'
+  | 'street-food';
 
 export type DishVessel =
   | 'rice-plate'
@@ -36,7 +54,12 @@ export type DishVessel =
   | 'skillet'
   | 'snack-plate'
   | 'dessert-cup'
-  | 'ice-cone';
+  | 'ice-cone'
+  | 'pizza'
+  | 'burger'
+  | 'fried-chicken'
+  | 'seafood-bowl'
+  | 'skewer';
 
 export interface DishVisualSpec {
   vessel: DishVessel;
@@ -53,14 +76,15 @@ export interface FoodItem {
   name: string;
   minPrice: number;
   maxPrice: number;
+  typicalPrice?: number;
   category: FoodCategory;
-  group: FoodGroup;
+  mealKind: MealKind;
   mealTypes: MealTime[];
   description: string;
   imageUrl: string;
   imageAlt: string;
   isVegetarian: boolean;
-  tags: MoodTag[];
+  tags: FoodTag[];
   visual: DishVisualSpec;
 }
 

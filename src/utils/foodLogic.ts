@@ -3,66 +3,80 @@ import type {
   FoodCategory,
   FoodItem,
   FoodMode,
+  FoodTag,
   MealTimeFilter,
-  MoodId,
-  MoodTag,
+  VibeFilterId,
 } from '../types/food';
 
 export interface FilterCriteria {
   mode: FoodMode;
-  maxBudget: number | null; // null = không giới hạn
+  maxBudget: number | null; // null = không giới hạn (Tất cả)
   mealTime: MealTimeFilter;
-  mood: MoodId;
+  vibe: VibeFilterId;
 }
 
-export const MOOD_OPTIONS: Array<{
-  id: MoodId;
+export const VIBE_OPTIONS: Array<{
+  id: VibeFilterId;
   emoji: string;
   label: string;
   hint: string;
-  preferredTags: MoodTag[];
+  requiredTag: FoodTag | null;
 }> = [
   {
-    id: 'tired-light',
-    emoji: '🥹',
-    label: 'Hơi mệt, muốn ăn nhẹ',
-    hint: 'Ưu tiên món ấm, thanh nhẹ, dễ tiêu nha.',
-    preferredTags: ['light', 'warm'],
+    id: 'warm',
+    emoji: '🍜',
+    label: 'Ăn gì đó nóng nóng',
+    hint: 'Ưu tiên mấy món nước, cháo hoặc đồ nóng hổi ấm bụng.',
+    requiredTag: 'warm',
   },
   {
-    id: 'starving',
-    emoji: '🤤',
-    label: 'Đói lắm rồi!',
-    hint: 'Chọn món chắc bụng để nạp lại năng lượng liền!',
-    preferredTags: ['filling'],
+    id: 'spicy',
+    emoji: '🌶️',
+    label: 'Thèm cay',
+    hint: 'Lọc các món có vị cay tê kích thích vị giác.',
+    requiredTag: 'spicy',
   },
   {
-    id: 'budget-saver',
+    id: 'crispy',
+    emoji: '🍗',
+    label: 'Thèm đồ chiên',
+    hint: 'Lọc gà rán, khoai chiên, nem rán và các món giòn rụm.',
+    requiredTag: 'crispy',
+  },
+  {
+    id: 'seafood',
+    emoji: '🐚',
+    label: 'Đi ăn ốc không?',
+    hint: 'Lọc ốc, ngao và các món hải sản.',
+    requiredTag: 'seafood',
+  },
+  {
+    id: 'western',
+    emoji: '🍕',
+    label: 'Muốn ăn đồ Tây',
+    hint: 'Lọc pizza, hamburger, mì Ý, phô mai que...',
+    requiredTag: 'western',
+  },
+  {
+    id: 'street-food',
+    emoji: '🛵',
+    label: 'Ăn vặt vỉa hè',
+    hint: 'Lọc ốc, bánh tráng, thịt xiên, bánh đúc nóng, bánh rán mặn...',
+    requiredTag: 'street-food',
+  },
+  {
+    id: 'budget',
     emoji: '💸',
-    label: 'Cuối tháng tiết kiệm',
-    hint: 'Ưu tiên mấy món ngon-bổ-rẻ hợp ví sinh viên.',
-    preferredTags: ['budget'],
+    label: 'Hôm nay tiết kiệm',
+    hint: 'Lọc các món bình dân cực mềm cho ví sinh viên (≤ 35k).',
+    requiredTag: 'budget',
   },
   {
-    id: 'treat-yourself',
-    emoji: '😋',
-    label: 'Muốn ăn một bữa thật ngon',
-    hint: 'Tự thưởng cho bản thân một bữa chất lượng chút nhé!',
-    preferredTags: ['treat'],
-  },
-  {
-    id: 'sweet-tooth',
-    emoji: '🍬',
-    label: 'Thèm đồ ngọt',
-    hint: 'Ưu tiên các món ngọt dịu, mát lạnh để lên mood.',
-    preferredTags: ['sweet'],
-  },
-  {
-    id: 'random-any',
-    emoji: '🤔',
-    label: 'Không biết, random đại đi!',
-    hint: 'Để vũ trụ tự do sắp xếp bữa hôm nay cho bạn.',
-    preferredTags: [],
+    id: 'sweet',
+    emoji: '🍧',
+    label: 'Thèm ngọt',
+    hint: 'Lọc chè, sữa chua, caramen, kem và món ngọt.',
+    requiredTag: 'sweet',
   },
 ];
 
@@ -75,73 +89,96 @@ export function formatPriceRange(minPrice: number, maxPrice: number): string {
 }
 
 export function formatBudgetLabel(maxBudget: number | null): string {
-  if (maxBudget === null) return 'Không giới hạn';
+  if (maxBudget === null) return 'Tất cả';
   return `${maxBudget.toLocaleString('vi-VN')}đ`;
+}
+
+export function filterByBudget(foods: FoodItem[], budget: number | null): FoodItem[] {
+  if (budget === null) return foods;
+  return foods.filter((food) => food.maxPrice <= budget);
 }
 
 export function matchesMode(food: FoodItem, mode: FoodMode): boolean {
   if (mode === 'all') return true;
-  return food.group === mode;
+  return food.mealKind === mode;
+}
+
+export function matchesVibe(food: FoodItem, vibe: VibeFilterId): boolean {
+  if (vibe === 'all') return true;
+  if (vibe === 'budget') {
+    return food.tags.includes('budget') || food.maxPrice <= 35000;
+  }
+  const option = VIBE_OPTIONS.find((v) => v.id === vibe);
+  if (!option || !option.requiredTag) return true;
+  return food.tags.includes(option.requiredTag);
 }
 
 export function filterFoods(foods: FoodItem[], criteria: FilterCriteria): FoodItem[] {
-  return foods.filter((food) => {
-    if (!matchesMode(food, criteria.mode)) return false;
-    if (criteria.maxBudget !== null && food.maxPrice > criteria.maxBudget) return false;
-    if (criteria.mealTime !== 'any' && !food.mealTypes.includes(criteria.mealTime)) return false;
+  const byMode = foods.filter((food) => matchesMode(food, criteria.mode));
+  const byBudget = filterByBudget(byMode, criteria.maxBudget);
+  return byBudget.filter((food) => {
+    if (criteria.mealTime !== 'any' && !food.mealTypes.includes(criteria.mealTime)) {
+      return false;
+    }
+    if (!matchesVibe(food, criteria.vibe)) {
+      return false;
+    }
     return true;
   });
 }
 
-export function getMoodWeight(food: FoodItem, mood: MoodId): number {
-  if (mood === 'random-any') return 1;
-  const option = MOOD_OPTIONS.find((m) => m.id === mood);
-  if (!option) return 1;
+export function isFoodStillEligible(
+  selectedFood: FoodItem | null,
+  eligiblePool: readonly FoodItem[]
+): boolean {
+  if (!selectedFood) return false;
+  return eligiblePool.some((item) => item.id === selectedFood.id);
+}
 
-  let score = 1;
-  for (const tag of option.preferredTags) {
-    if (food.tags.includes(tag)) {
-      score += 3;
-    }
+export function shuffleFoodsFisherYates<T>(
+  items: readonly T[],
+  rng: () => number = Math.random
+): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  if (mood === 'budget-saver' && food.maxPrice <= 35000) {
-    score += 3;
-  }
-  if (mood === 'sweet-tooth' && food.group === 'dessert') {
-    score += 4;
-  }
-  return score;
+  return copy;
 }
 
 export function pickRandomFood(
-  pool: FoodItem[],
-  lastFoodId: number | null,
-  mood: MoodId = 'random-any',
+  eligiblePool: FoodItem[],
+  recentFoodIds: number[] = [],
+  recentCategories: FoodCategory[] = [],
   rng: () => number = Math.random
 ): FoodItem | null {
-  if (pool.length === 0) return null;
+  if (eligiblePool.length === 0) return null;
 
-  const candidates =
-    pool.length > 1 && lastFoodId !== null
-      ? pool.filter((item) => item.id !== lastFoodId)
-      : pool;
+  // Prefer dishes not in the last 5 rolls
+  const recentSet = new Set(recentFoodIds.slice(0, 5));
+  let candidates = eligiblePool.filter((item) => !recentSet.has(item.id));
 
-  const weights = candidates.map((item) => getMoodWeight(item, mood));
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-  if (totalWeight <= 0) {
-    const idx = Math.floor(rng() * candidates.length);
-    return candidates[Math.min(idx, candidates.length - 1)];
+  // If fewer than 1 option remains outside the 5-roll window, allow re-use while avoiding immediate repeat
+  if (candidates.length === 0) {
+    const immediateLastId = recentFoodIds[0] ?? null;
+    candidates =
+      eligiblePool.length > 1 && immediateLastId !== null
+        ? eligiblePool.filter((item) => item.id !== immediateLastId)
+        : eligiblePool;
   }
 
-  let threshold = rng() * totalWeight;
-  for (let i = 0; i < candidates.length; i++) {
-    threshold -= weights[i];
-    if (threshold <= 0) {
-      return candidates[i];
+  // Prefer avoiding the same category 3 times in a row when other eligible categories exist
+  if (recentCategories.length >= 2 && recentCategories[0] === recentCategories[1]) {
+    const blockedCategory = recentCategories[0];
+    const diverseCandidates = candidates.filter((item) => item.category !== blockedCategory);
+    if (diverseCandidates.length > 0) {
+      candidates = diverseCandidates;
     }
   }
-  return candidates[candidates.length - 1];
+
+  const idx = Math.floor(rng() * candidates.length);
+  return candidates[Math.min(idx, candidates.length - 1)] ?? eligiblePool[0];
 }
 
 export function pickRandomCombo(
@@ -150,8 +187,8 @@ export function pickRandomCombo(
   lastComboPair: [number, number] | null = null,
   rng: () => number = Math.random
 ): ComboResult | null {
-  const mains = foods.filter((f) => f.group === 'main');
-  const desserts = foods.filter((f) => f.group === 'dessert');
+  const mains = foods.filter((f) => f.mealKind === 'main');
+  const desserts = foods.filter((f) => f.mealKind === 'dessert');
 
   const validPairs: Array<{ main: FoodItem; dessert: FoodItem }> = [];
   for (const main of mains) {
@@ -187,10 +224,12 @@ export function searchAndFilterMenu(
   foods: FoodItem[],
   query: string,
   category: FoodCategory | 'all',
-  onlyVegetarian: boolean
+  onlyVegetarian: boolean,
+  maxBudget: number | null = null
 ): FoodItem[] {
+  const budgetFiltered = filterByBudget(foods, maxBudget);
   const normalizedQuery = normalizeVietnamese(query.trim().toLowerCase());
-  return foods.filter((food) => {
+  return budgetFiltered.filter((food) => {
     if (category !== 'all' && food.category !== category) return false;
     if (onlyVegetarian && !food.isVegetarian) return false;
     if (!normalizedQuery) return true;

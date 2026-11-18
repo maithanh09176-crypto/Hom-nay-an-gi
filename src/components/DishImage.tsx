@@ -26,7 +26,9 @@ export const DishImage: React.FC<DishImageProps> = ({
   return (
     <div className={`relative overflow-hidden bg-[#FFEAF0]/40 dark:bg-[#2E242D] ${className}`}>
       {/* Bespoke dish-specific artwork serves as instant placeholder and offline/error fallback */}
-      <DishIllustration visual={food.visual} dishId={food.id} />
+      {(!hasPhoto || !loaded) && (
+        <DishIllustration visual={food.visual} dishId={food.id} />
+      )}
 
       {hasPhoto && !loaded && (
         <div
@@ -44,7 +46,7 @@ export const DishImage: React.FC<DishImageProps> = ({
           referrerPolicy="no-referrer"
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+          className={`absolute inset-0 w-full h-full object-cover ${
             loaded ? 'opacity-100' : 'opacity-0'
           }`}
         />

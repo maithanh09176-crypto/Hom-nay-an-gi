@@ -21,6 +21,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
   onGoToMenu,
 }) => {
   const [pickedFavorite, setPickedFavorite] = useState<FoodItem | null>(null);
+  const [recentFavIds, setRecentFavIds] = useState<number[]>([]);
 
   const favoriteFoods = useMemo(
     () => foods.filter((f) => favoriteIds.includes(f.id)),
@@ -28,8 +29,11 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
   );
 
   const handleRandomFavorite = () => {
-    const next = pickRandomFood(favoriteFoods, pickedFavorite?.id ?? null, 'random-any');
+    const next = pickRandomFood(favoriteFoods, recentFavIds, []);
     setPickedFavorite(next);
+    if (next) {
+      setRecentFavIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)].slice(0, 5));
+    }
   };
 
   return (
@@ -68,7 +72,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
             onClick={onGoToMenu}
             className="min-h-[44px] px-5 rounded-2xl bg-[#FFB6C1] text-[#5B2333] font-bold text-sm hover:brightness-95 transition"
           >
-            Khám phá 100 món ngay
+            Khám phá 120 món ngay
           </button>
         </div>
       ) : (
@@ -99,6 +103,9 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                   </p>
                   <p className="text-xs font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]">
                     {formatPriceRange(pickedFavorite.minPrice, pickedFavorite.maxPrice)}
+                  </p>
+                  <p className="text-[10px] text-[#8C7782] dark:text-[#B8A5B0]">
+                    Giá tham khảo, tùy quán và khẩu phần.
                   </p>
                 </div>
               </button>
