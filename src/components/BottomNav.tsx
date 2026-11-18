@@ -8,6 +8,7 @@ interface BottomNavProps {
   onChangeTab: (tab: AppTab) => void;
   favoritesCount: number;
   historyCount: number;
+  hiddenForKeyboard?: boolean;
 }
 
 const NAV_ITEMS: Array<{
@@ -27,13 +28,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onChangeTab,
   favoritesCount,
   historyCount,
+  hiddenForKeyboard = false,
 }) => {
+  if (hiddenForKeyboard) return null;
+
   return (
     <nav
       aria-label="Điều hướng chính"
-      className="fixed bottom-0 inset-x-0 z-40 bg-[#FFFDF8]/92 dark:bg-[#1E171D]/92 backdrop-blur-md border-t border-[#F0E2E8] dark:border-[#3B2E38] pb-[env(safe-area-inset-bottom)]"
+      className="bottom-navigation bg-[#FFFDF8]/95 dark:bg-[#1E171D]/95 backdrop-blur-md border-t border-[#F0E2E8] dark:border-[#3B2E38]"
     >
-      <div className="max-w-3xl mx-auto grid grid-cols-4 h-16 px-1">
+      <div className="max-w-3xl mx-auto grid grid-cols-4 min-h-[68px] px-1">
         {NAV_ITEMS.map(({ id, label, Icon }) => {
           const isActive = activeTab === id;
           const count = id === 'favorites' ? favoritesCount : id === 'history' ? historyCount : 0;
@@ -44,7 +48,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               type="button"
               onClick={() => onChangeTab(id)}
               aria-current={isActive ? 'page' : undefined}
-              className={`relative flex flex-col items-center justify-center min-h-[44px] rounded-2xl mx-0.5 my-1 transition-colors focus-visible:outline-2 focus-visible:outline-[#E11D48] ${
+              className={`relative flex flex-col items-center justify-center min-h-[44px] min-w-[44px] rounded-2xl mx-0.5 my-1 transition-colors focus-visible:outline-2 focus-visible:outline-[#E11D48] ${
                 isActive
                   ? 'text-[#5B2333] dark:text-[#FFD6E2] bg-[#FFEAF0] dark:bg-[#3B2531]'
                   : 'text-[#6E5B65] dark:text-[#CBBBC4] hover:bg-[#FFEAF0]/40 dark:hover:bg-[#2E242D]'

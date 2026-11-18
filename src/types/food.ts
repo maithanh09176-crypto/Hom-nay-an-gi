@@ -18,14 +18,16 @@ export type MealTime = 'sang' | 'trua' | 'toi';
 
 export type MealTimeFilter = MealTime | 'any';
 
+export type Budget = number | null;
+
 export type VibeFilterId =
   | 'all'
-  | 'warm'
+  | 'hot'
   | 'spicy'
-  | 'crispy'
-  | 'seafood'
+  | 'fried'
+  | 'snails_seafood'
   | 'western'
-  | 'street-food'
+  | 'street_food'
   | 'budget'
   | 'sweet';
 
@@ -35,12 +37,12 @@ export type FoodTag =
   | 'budget'
   | 'treat'
   | 'sweet'
-  | 'warm'
-  | 'crispy'
+  | 'hot'
+  | 'fried'
   | 'spicy'
-  | 'seafood'
+  | 'snails_seafood'
   | 'western'
-  | 'street-food';
+  | 'street_food';
 
 export type DishVessel =
   | 'rice-plate'

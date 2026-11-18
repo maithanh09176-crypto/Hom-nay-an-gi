@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Heart, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, Heart, Sparkles } from 'lucide-react';
 import type {
+  Budget,
   ComboResult,
   FoodCategory,
   FoodItem,
@@ -10,6 +11,7 @@ import type {
 } from '../types/food';
 import { CATEGORY_LABELS, MEAL_KIND_LABELS } from '../data/foods';
 import {
+  SAVING_MODE_MAX_BUDGET,
   VIBE_OPTIONS,
   filterFoods,
   formatBudgetLabel,
@@ -40,13 +42,14 @@ const MODE_OPTIONS: Array<{ id: FoodMode; emoji: string; label: string }> = [
   { id: 'all', emoji: '🎲', label: 'Tất cả' },
 ];
 
-const QUICK_BUDGETS: Array<{ value: number | null; label: string }> = [
+const QUICK_BUDGETS: Array<{ value: Budget; label: string }> = [
   { value: 25000, label: '25k' },
   { value: 35000, label: '35k' },
   { value: 45000, label: '45k' },
   { value: 55000, label: '55k' },
   { value: 75000, label: '75k' },
   { value: 100000, label: '100k' },
+  { value: 150000, label: '150k' },
   { value: null, label: 'Tất cả' },
 ];
 
@@ -57,24 +60,25 @@ const MEAL_TIME_OPTIONS: Array<{ id: MealTimeFilter; label: string }> = [
   { id: 'toi', label: 'Tối' },
 ];
 
-const COMBO_BUDGETS: Array<{ value: number | null; label: string }> = [
+const COMBO_BUDGETS: Array<{ value: Budget; label: string }> = [
   { value: 25000, label: '25k' },
   { value: 45000, label: '45k' },
   { value: 55000, label: '55k' },
   { value: 75000, label: '75k' },
   { value: 100000, label: '100k' },
+  { value: 150000, label: '150k' },
   { value: null, label: 'Tất cả' },
 ];
 
 const SUBTLE_GREETINGS = [
-  'Này, hôm nay ăn gì chưa?',
-  'Không biết ăn gì thì cứ để web chọn hộ.',
+  'Này, hôm nay ăn gì chưa? 😋',
+  'Đói bụng rồi đúng không, để web chọn hộ nha!',
   'Ăn gì cũng được, đừng bỏ bữa là được.',
-  'Hôm nay ăn ngon một chút nha!',
+  'Hôm nay tự thưởng một món ngon nha!',
 ];
 
 const SLIDER_MIN = 10000;
-const SLIDER_MAX = 150000;
+const SLIDER_MAX = 200000;
 
 export const HomeView: React.FC<HomeViewProps> = ({
   foods,
@@ -86,7 +90,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectFood,
 }) => {
   const [mode, setMode] = useState<FoodMode>('all');
-  const [maxBudget, setMaxBudget] = useState<number | null>(45000);
+  const [budget, setBudget] = useState<Budget>(45000);
+  const [savedBudgetBeforeSaving, setSavedBudgetBeforeSaving] = useState<Budget | undefined>(
+    undefined
+  );
+  const [showCustomSlider, setShowCustomSlider] = useState(false);
   const [mealTime, setMealTime] = useState<MealTimeFilter>('any');
   const [vibe, setVibe] = useState<VibeFilterId>('all');
 
@@ -101,7 +109,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [recentRandomIds, setRecentRandomIds] = useState<number[]>([]);
   const [recentCategories, setRecentCategories] = useState<FoodCategory[]>([]);
 
-  const [comboBudget, setComboBudget] = useState<number | null>(45000);
+  const [comboBudget, setComboBudget] = useState<Budget>(45000);
   const [comboResult, setComboResult] = useState<ComboResult | null>(() =>
     pickRandomCombo(foods, 45000)
   );
@@ -113,11 +121,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const resultCardRef = useRef<HTMLDivElement | null>(null);
 
   const eligiblePool = useMemo(
-    () => filterFoods(shuffledFoods, { mode, maxBudget, mealTime, vibe }),
-    [shuffledFoods, mode, maxBudget, mealTime, vibe]
+    () => filterFoods(shuffledFoods, { mode, maxBudget: budget, mealTime, vibe }),
+    [shuffledFoods, mode, budget, mealTime, vibe]
   );
 
-  // Shuffled suggestions that strictly obey active filters & budget (never leak expensive cards at 25k)
   const visibleSuggestions = useMemo(() => eligiblePool.slice(0, 6), [eligiblePool]);
 
   const selectedVibeObj = useMemo(
@@ -140,7 +147,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return () => clearTimers();
   }, []);
 
-  // Test 9: Re-validate current result whenever budget or filters change
+  // Re-validate active result whenever budget/mode/vibe/mealTime changes
   useEffect(() => {
     if (isRolling) {
       clearTimers();
@@ -157,13 +164,63 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   }, [eligiblePool]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectHomeBudget = (nextBudget: number | null) => {
-    setMaxBudget(nextBudget);
-    // Sync combo budget so no card on Home exceeds the selected budget
+  const syncComboWithBudget = (nextBudget: Budget) => {
     setComboBudget(nextBudget);
-    const nextCombo = pickRandomCombo(foods, nextBudget);
-    setComboResult(nextCombo);
+    setComboResult(pickRandomCombo(foods, nextBudget));
     setComboConfirmed(false);
+  };
+
+  const applyBudgetChange = (nextBudget: Budget) => {
+    // If user explicitly chooses a budget above 35k or Tất cả while saving mode is on, exit saving mode
+    if (vibe === 'budget' && (nextBudget === null || nextBudget > SAVING_MODE_MAX_BUDGET)) {
+      setVibe('all');
+      setSavedBudgetBeforeSaving(undefined);
+    }
+    setBudget(nextBudget);
+    syncComboWithBudget(nextBudget);
+  };
+
+  const handleToggleVibe = (nextVibeId: VibeFilterId) => {
+    if (vibe === nextVibeId) {
+      // Turning off active vibe
+      setVibe('all');
+      if (nextVibeId === 'budget' && savedBudgetBeforeSaving !== undefined) {
+        const restored = savedBudgetBeforeSaving;
+        setSavedBudgetBeforeSaving(undefined);
+        setBudget(restored);
+        syncComboWithBudget(restored);
+      }
+      return;
+    }
+
+    // Rule: selecting one of 8 vibes automatically sets meal mode to 'all'
+    setMode('all');
+
+    if (nextVibeId === 'budget') {
+      const priorBudget =
+        vibe === 'budget' && savedBudgetBeforeSaving !== undefined
+          ? savedBudgetBeforeSaving
+          : budget;
+      setSavedBudgetBeforeSaving(priorBudget);
+      const clampedBudget =
+        priorBudget !== null && priorBudget < SAVING_MODE_MAX_BUDGET
+          ? priorBudget
+          : SAVING_MODE_MAX_BUDGET;
+      setVibe('budget');
+      setBudget(clampedBudget);
+      syncComboWithBudget(clampedBudget);
+      return;
+    }
+
+    // Switching from saving mode to another vibe restores prior budget cleanly
+    if (vibe === 'budget' && savedBudgetBeforeSaving !== undefined) {
+      const restored = savedBudgetBeforeSaving;
+      setSavedBudgetBeforeSaving(undefined);
+      setBudget(restored);
+      syncComboWithBudget(restored);
+    }
+
+    setVibe(nextVibeId);
   };
 
   const runRandomizer = (isReroll = false) => {
@@ -200,7 +257,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       setSelectedResult(chosen);
       setIsRolling(false);
       if (chosen) {
-        setRecentRandomIds((prev) => [chosen.id, ...prev.filter((id) => id !== chosen.id)].slice(0, 5));
+        setRecentRandomIds((prev) =>
+          [chosen.id, ...prev.filter((id) => id !== chosen.id)].slice(0, 5)
+        );
         setRecentCategories((prev) => [chosen.category, ...prev].slice(0, 3));
         setConfettiKey((k) => k + 1);
         if (isReroll && rerollCount + 1 >= 3) {
@@ -209,10 +268,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
           setStatusMessage('Vũ trụ đã quyết định, giờ chỉ việc đi ăn thôi 😋');
         }
         window.requestAnimationFrame(() => {
-          resultCardRef.current?.scrollIntoView({
-            behavior: reducedMotion ? 'auto' : 'smooth',
-            block: 'center',
-          });
+          const el = resultCardRef.current;
+          if (!el) return;
+          const rect = el.getBoundingClientRect();
+          const viewportBottomSafe = window.innerHeight - 96;
+          if (rect.top < 12 || rect.bottom > viewportBottomSafe) {
+            el.scrollIntoView({
+              behavior: reducedMotion ? 'auto' : 'smooth',
+              block: 'nearest',
+            });
+          }
         });
       }
     }, duration);
@@ -226,7 +291,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     setStatusMessage('Xong! Giờ nhớ đi ăn thật đấy nha.');
   };
 
-  const handleRollCombo = (budgetOverride?: number | null) => {
+  const handleRollCombo = (budgetOverride?: Budget) => {
     const activeBudget = budgetOverride !== undefined ? budgetOverride : comboBudget;
     const lastPair: [number, number] | null = comboResult
       ? [comboResult.main.id, comboResult.dessert.id]
@@ -244,40 +309,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   const displayedCardFood = isRolling ? previewFood ?? selectedResult : selectedResult;
-  const sliderValue = maxBudget ?? SLIDER_MAX;
+  const sliderValue = budget === null ? SLIDER_MAX : Math.min(SLIDER_MAX, Math.max(SLIDER_MIN, budget));
   const sliderPercent = ((sliderValue - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * 100;
 
   return (
-    <div className="space-y-5">
-      {/* 1. Tiêu đề + 2. Lời chào nhỏ */}
-      <section className="rounded-3xl bg-[#FFEAF0]/75 dark:bg-[#2E212B] border border-[#F7D6E0] dark:border-[#453140] p-4 sm:p-5">
-        <div className="flex items-center gap-3.5">
-          <img
-            src="/src/assets/images/cute_noodle_mascot_1795019529832.jpg"
-            alt="Minh họa tô mì pastel dễ thương"
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white dark:border-[#3B2E38] shadow-xs shrink-0"
-          />
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-[#2D2229] dark:text-[#FDF7F9] text-balance">
-              Nay ăn gì nhỉ? 🍜
-            </h1>
-            <p className="mt-0.5 text-xs font-semibold text-[#9C3B58] dark:text-[#FFB6C1]">
-              {SUBTLE_GREETINGS[greetingIndex]}
-            </p>
-            <p className="mt-0.5 text-xs sm:text-sm text-[#57464F] dark:text-[#DFCFD7] leading-snug">
-              Câu hỏi khó nhất mỗi ngày đã có người giải quyết hộ rồi đây!
-            </p>
-          </div>
+    <div className="space-y-4">
+      {/* 1. Lời chào gọn nhẹ ngay dưới header (không lặp lại tiêu đề lớn) */}
+      <section className="flex items-center gap-3 rounded-2xl bg-[#FFEAF0]/70 dark:bg-[#2E212B] border border-[#F7D6E0] dark:border-[#453140] px-3 py-2.5">
+        <img
+          src="/src/assets/images/cute_noodle_mascot_1795019529832.jpg"
+          alt="Minh họa tô mì pastel dễ thương"
+          className="w-10 h-10 rounded-xl object-cover border border-white dark:border-[#3B2E38] shrink-0"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs sm:text-sm font-bold text-[#9C3B58] dark:text-[#FFB6C1] leading-snug">
+            {SUBTLE_GREETINGS[greetingIndex]}
+          </p>
+          <p className="text-[11px] sm:text-xs text-[#57464F] dark:text-[#DFCFD7] leading-snug">
+            Không biết ăn gì thì để vũ trụ chọn hộ (184 món)!
+          </p>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        <div className="lg:col-span-7 space-y-4">
-          {/* 3. Thanh chọn Bữa chính / Ăn vặt / Tráng miệng / Tất cả */}
-          <section aria-labelledby="mode-section-title" className="space-y-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        <div className="lg:col-span-7 space-y-3.5 min-w-0">
+          {/* 2. Chọn loại món */}
+          <section aria-labelledby="mode-section-title" className="space-y-1.5">
             <h2
               id="mode-section-title"
-              className="text-sm font-bold text-[#2D2229] dark:text-[#FDF7F9]"
+              className="text-xs font-bold text-[#4A3B43] dark:text-[#E5D7DF]"
             >
               Chọn loại món
             </h2>
@@ -296,7 +356,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     role="tab"
                     aria-selected={active}
                     onClick={() => setMode(opt.id)}
-                    className={`min-h-[44px] px-1.5 rounded-2xl text-[11px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 border transition-colors ${
+                    className={`min-h-[44px] px-1 rounded-2xl text-[11px] sm:text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 border transition-colors min-w-0 ${
                       active
                         ? 'bg-[#FFB6C1] border-[#F29AA8] text-[#5B2333] shadow-xs'
                         : 'bg-white dark:bg-[#251D24] border-[#EADCE3] dark:border-[#3B2E38] text-[#4A3B43] dark:text-[#E5D7DF] hover:border-[#FFB6C1]'
@@ -310,89 +370,126 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </section>
 
-          {/* 4. Các nút ngân sách + thanh trượt */}
+          {/* 3. Chọn ngân sách nhanh gọn (1 hàng cuộn ngang + slider thu gọn) */}
           <section
             aria-labelledby="budget-section-title"
-            className="rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-4 space-y-3.5"
+            className="rounded-2xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-3.5 space-y-2.5"
           >
             <div className="flex items-center justify-between gap-2">
               <h2
                 id="budget-section-title"
-                className="text-sm font-bold text-[#2D2229] dark:text-[#FDF7F9]"
+                className="text-xs sm:text-sm font-bold text-[#2D2229] dark:text-[#FDF7F9]"
               >
                 💸 Ngân sách tối đa
               </h2>
-              <span
-                data-testid="active-budget-label"
-                className="text-sm font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]"
-              >
-                {formatBudgetLabel(maxBudget)}
-              </span>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_BUDGETS.map((b) => {
-                const active = maxBudget === b.value;
-                return (
-                  <button
-                    key={b.label}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => handleSelectHomeBudget(b.value)}
-                    className={`min-h-[44px] px-3 rounded-2xl text-xs font-semibold whitespace-nowrap border transition-colors tabular-nums ${
-                      active
-                        ? 'bg-[#FFEAF0] dark:bg-[#3B2531] border-[#FFB6C1] text-[#5B2333] dark:text-[#FFD6E2]'
-                        : 'bg-[#FFFDF8] dark:bg-[#1E171D] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
-                    }`}
-                  >
-                    {b.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div>
-              <label htmlFor="budget-slider" className="sr-only">
-                Thanh trượt chọn ngân sách tối đa từ 10k đến 150k
-              </label>
-              <input
-                id="budget-slider"
-                type="range"
-                min={SLIDER_MIN}
-                max={SLIDER_MAX}
-                step={5000}
-                value={sliderValue}
-                onChange={(e) => handleSelectHomeBudget(Number(e.target.value))}
-                style={{
-                  background: `linear-gradient(to right, #FFB6C1 ${sliderPercent}%, rgba(220, 198, 240, 0.35) ${sliderPercent}%)`,
-                }}
-                className="w-full pastel-slider"
-              />
-              <div className="mt-1 flex justify-between text-[11px] text-[#6E5B65] dark:text-[#CBBBC4] tabular-nums">
-                <span>10k</span>
-                <span>45k</span>
-                <span>100k</span>
-                <span>150k</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-[#8C7782] dark:text-[#B8A5B0] sm:hidden">
+                  Vuốt ngang ›
+                </span>
+                <span
+                  data-testid="active-budget-label"
+                  className="text-sm font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]"
+                >
+                  {formatBudgetLabel(budget)}
+                </span>
               </div>
             </div>
 
-            <div className="pt-1 border-t border-[#F5EBF0] dark:border-[#3B2E38] flex flex-wrap items-center justify-between gap-1">
+            <div className="relative">
+              <div
+                className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pr-4"
+                role="group"
+                aria-label="Chọn nhanh ngân sách"
+              >
+                {QUICK_BUDGETS.map((b) => {
+                  const active = budget === b.value;
+                  return (
+                    <button
+                      key={b.label}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => applyBudgetChange(b.value)}
+                      className={`min-h-[44px] px-3 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 border transition-colors tabular-nums ${
+                        active
+                          ? 'bg-[#FFEAF0] dark:bg-[#3B2531] border-[#FFB6C1] text-[#5B2333] dark:text-[#FFD6E2]'
+                          : 'bg-[#FFFDF8] dark:bg-[#1E171D] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-white dark:from-[#251D24] to-transparent"
+              />
+            </div>
+
+            {/* Collapsible slider section (collapsed by default to keep Random CTA above fold) */}
+            <div>
+              <button
+                type="button"
+                aria-expanded={showCustomSlider}
+                onClick={() => setShowCustomSlider((prev) => !prev)}
+                className="min-h-[44px] w-full flex items-center justify-between gap-2 px-2.5 rounded-xl bg-[#FFFDF8] dark:bg-[#1E171D] border border-[#F0E2E8] dark:border-[#3B2E38] text-xs font-semibold text-[#57464F] dark:text-[#DFCFD7]"
+              >
+                <span>⚙️ Tùy chỉnh ngân sách</span>
+                <span className="flex items-center gap-1 text-[11px] text-[#9C3B58] dark:text-[#FFB6C1] tabular-nums">
+                  {budget === null ? 'Không giới hạn' : formatBudgetLabel(budget)}
+                  {showCustomSlider ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </span>
+              </button>
+
+              {showCustomSlider && (
+                <div className="pt-3 pb-1 px-1 space-y-1.5">
+                  <label htmlFor="budget-slider" className="sr-only">
+                    Thanh trượt chọn ngân sách tối đa từ 10k đến 200k
+                  </label>
+                  <input
+                    id="budget-slider"
+                    type="range"
+                    min={SLIDER_MIN}
+                    max={SLIDER_MAX}
+                    step={5000}
+                    value={sliderValue}
+                    onChange={(e) => applyBudgetChange(Number(e.target.value))}
+                    style={{
+                      background: `linear-gradient(to right, #FFB6C1 ${sliderPercent}%, rgba(220, 198, 240, 0.35) ${sliderPercent}%)`,
+                    }}
+                    className="w-full pastel-slider"
+                  />
+                  <div className="flex justify-between text-[11px] text-[#6E5B65] dark:text-[#CBBBC4] tabular-nums">
+                    <span>10k</span>
+                    <span>50k</span>
+                    <span>100k</span>
+                    <span>200k</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
               <p
                 data-testid="eligible-count-text"
-                className="text-xs font-semibold text-[#5B2333] dark:text-[#FFD6E2] tabular-nums"
+                className="font-semibold text-[#5B2333] dark:text-[#FFD6E2] tabular-nums"
               >
                 🍜 Có {eligiblePool.length} món phù hợp với ngân sách của bạn
               </p>
-              <p className="text-[11px] text-[#8C7782] dark:text-[#B8A5B0]">
+              <span className="text-[11px] text-[#8C7782] dark:text-[#B8A5B0]">
                 Giá tham khảo, tùy quán và khẩu phần.
-              </p>
+              </span>
             </div>
           </section>
 
-          {/* 5. Nút random lớn + 6. Kết quả + 7. Hai nút Chốt / Quay nữa */}
+          {/* 4. Nút Random chính + 5. Card kết quả + 6. Hai nút Chốt / Quay nữa */}
           <section
             aria-labelledby="randomizer-heading"
-            className="relative rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-4 sm:p-5 shadow-xs overflow-hidden"
+            className="relative rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-4 shadow-xs overflow-hidden"
           >
             <PastelConfetti burstKey={confettiKey} reducedMotion={reducedMotion} />
 
@@ -401,18 +498,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </h2>
 
             {eligiblePool.length === 0 ? (
-              <div className="py-4 text-center space-y-3" data-testid="empty-budget-state">
+              <div className="py-3 text-center space-y-3" data-testid="empty-budget-state">
                 <p className="text-base font-bold text-[#2D2229] dark:text-[#FDF7F9]">
                   Ví tiền hơi thử thách rồi 😆 Thử tăng ngân sách một chút xem sao!
                 </p>
                 <p className="text-xs sm:text-sm text-[#6E5B65] dark:text-[#CBBBC4]">
-                  Không có món nào đáp ứng đồng thời bộ lọc hiện tại (hệ thống giữ nguyên giới hạn giá để bạn không bị lố ví).
+                  Không có món nào khớp đồng thời bộ lọc hiện tại.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  {maxBudget !== null && maxBudget < 55000 && (
+                  {budget !== null && budget < 55000 && (
                     <button
                       type="button"
-                      onClick={() => handleSelectHomeBudget(55000)}
+                      onClick={() => applyBudgetChange(55000)}
                       className="min-h-[44px] px-4 rounded-2xl bg-[#FFB6C1] text-[#5B2333] font-bold text-xs sm:text-sm hover:brightness-95 transition"
                     >
                       Tăng ngân sách lên 55k
@@ -420,7 +517,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => handleSelectHomeBudget(null)}
+                    onClick={() => applyBudgetChange(null)}
                     className="min-h-[44px] px-4 rounded-2xl bg-[#FFEAF0] dark:bg-[#3B2531] border border-[#FFB6C1] text-[#5B2333] dark:text-[#FFD6E2] font-bold text-xs sm:text-sm"
                   >
                     Xem tất cả ngân sách
@@ -441,12 +538,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <button
                   type="button"
                   onClick={() => runRandomizer(false)}
                   disabled={isRolling}
-                  className="w-full min-h-[54px] px-5 py-3.5 rounded-2xl bg-[#FFB6C1] text-[#5B2333] font-bold text-base shadow-sm hover:brightness-95 active:scale-[0.98] disabled:opacity-75 transition flex items-center justify-center gap-2"
+                  className="w-full min-h-[54px] px-5 py-3 rounded-2xl bg-[#FFB6C1] text-[#5B2333] font-bold text-base shadow-sm hover:brightness-95 active:scale-[0.98] disabled:opacity-75 transition flex items-center justify-center gap-2"
                 >
                   <span aria-hidden="true">🎲</span>
                   <span>
@@ -455,7 +552,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </button>
 
                 {displayedCardFood ? (
-                  <div ref={resultCardRef} className="space-y-3.5 pt-1" aria-live="polite">
+                  <div
+                    ref={resultCardRef}
+                    className="space-y-3 pt-1 scroll-mb-28"
+                    aria-live="polite"
+                  >
                     {statusMessage && (
                       <p className="text-center text-xs sm:text-sm font-semibold text-[#9C3B58] dark:text-[#FFB6C1]">
                         {statusMessage}
@@ -508,7 +609,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           {displayedCardFood.isVegetarian ? ' · Món chay' : ''}
                         </p>
                         <div className="mt-1 flex items-baseline justify-between gap-2">
-                          <h3 className="text-lg sm:text-xl font-bold text-[#2D2229] dark:text-[#FDF7F9]">
+                          <h3 className="text-lg sm:text-xl font-bold text-[#2D2229] dark:text-[#FDF7F9] min-w-0">
                             {displayedCardFood.name}
                           </h3>
                           <div className="shrink-0 text-right">
@@ -582,15 +683,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </section>
         </div>
 
-        {/* 8. Các gợi ý theo sở thích + Khung giờ + Combo */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* 8 lựa chọn nhanh Gen Z */}
+        {/* 7. Chọn theo sở thích (8 nút 2 cột) + Khung giờ + Combo */}
+        <div className="lg:col-span-5 space-y-4 min-w-0">
           <section
             aria-labelledby="mood-heading"
             className="rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-4 space-y-3"
           >
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <h2
                   id="mood-heading"
                   className="text-sm font-bold text-[#2D2229] dark:text-[#FDF7F9]"
@@ -600,13 +700,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <p className="mt-0.5 text-xs text-[#6E5B65] dark:text-[#CBBBC4]">
                   {selectedVibeObj
                     ? selectedVibeObj.hint
-                    : 'Chọn nhanh 1 gu để lọc đúng món bạn đang thèm (hoặc bỏ trống để quay hết).'}
+                    : 'Chọn 1 sở thích để lọc nhanh món đúng gu (chọn lại để tắt).'}
                 </p>
               </div>
               {vibe !== 'all' && (
                 <button
                   type="button"
-                  onClick={() => setVibe('all')}
+                  onClick={() => handleToggleVibe(vibe)}
                   className="min-h-[36px] px-2.5 rounded-xl text-[11px] font-semibold bg-[#FFEAF0] dark:bg-[#3B2531] text-[#5B2333] dark:text-[#FFD6E2] shrink-0"
                 >
                   Bỏ lọc
@@ -622,21 +722,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     key={item.id}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => setVibe((prev) => (prev === item.id ? 'all' : item.id))}
-                    className={`min-h-[46px] px-3 py-2 rounded-2xl border text-left text-xs font-semibold flex items-center gap-2 transition-colors ${
+                    onClick={() => handleToggleVibe(item.id)}
+                    className={`min-h-[50px] px-2.5 py-2 rounded-2xl border text-left text-[13px] font-semibold flex items-center gap-2 transition-colors min-w-0 ${
                       active
                         ? 'bg-[#EDE3F8] dark:bg-[#3A2B4C] border-[#BFA0E2] text-[#35224A] dark:text-[#EDE2FA]'
                         : 'bg-[#FFFDF8] dark:bg-[#1E171D] border-[#EADCE3] dark:border-[#3B2E38] text-[#4A3B43] dark:text-[#E5D7DF] hover:border-[#DCC6F0]'
                     }`}
                   >
-                    <span className="text-base shrink-0" aria-hidden="true">
+                    <span className="text-base leading-none shrink-0" aria-hidden="true">
                       {item.emoji}
                     </span>
-                    <span className="leading-tight line-clamp-2">{item.label}</span>
+                    <span className="leading-snug break-words min-w-0">{item.label}</span>
                   </button>
                 );
               })}
             </div>
+
+            <p className="text-xs font-medium text-[#6E5B65] dark:text-[#CBBBC4] tabular-nums">
+              Hiện có <strong className="text-[#5B2333] dark:text-[#FFD6E2]">{eligiblePool.length}</strong> món phù hợp với bộ lọc đang chọn.
+            </p>
 
             {/* Khung giờ */}
             <div className="pt-2 border-t border-[#F5EBF0] dark:border-[#3B2E38]">
@@ -669,10 +773,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* Gợi ý combo */}
           <section
             aria-labelledby="combo-heading"
-            className="rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-4 space-y-3.5"
+            className="rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-4 space-y-3"
           >
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <h2
                   id="combo-heading"
                   className="text-sm font-bold text-[#2D2229] dark:text-[#FDF7F9]"
@@ -680,7 +784,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   🍜 Một món chính + một món tráng miệng
                 </h2>
                 <p className="mt-0.5 text-xs text-[#6E5B65] dark:text-[#CBBBC4]">
-                  Ghép đôi vừa no vừa mát miệng đúng trong ngân sách tối đa.
+                  Ghép đôi vừa no vừa mát miệng đúng trong ngân sách combo.
                 </p>
               </div>
               <span className="shrink-0 text-xs font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]">
@@ -688,28 +792,34 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {COMBO_BUDGETS.map((cb) => {
-                const active = comboBudget === cb.value;
-                return (
-                  <button
-                    key={cb.label}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      setComboBudget(cb.value);
-                      handleRollCombo(cb.value);
-                    }}
-                    className={`min-h-[44px] px-3 rounded-xl text-xs font-semibold border transition-colors tabular-nums ${
-                      active
-                        ? 'bg-[#FFEAF0] dark:bg-[#3B2531] border-[#FFB6C1] text-[#5B2333] dark:text-[#FFD6E2]'
-                        : 'bg-[#FFFDF8] dark:bg-[#1E171D] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
-                    }`}
-                  >
-                    {cb.label}
-                  </button>
-                );
-              })}
+            <div className="relative">
+              <div className="flex items-center gap-1.5 overflow-x-auto lg:flex-wrap no-scrollbar pr-4 pb-0.5">
+                {COMBO_BUDGETS.map((cb) => {
+                  const active = comboBudget === cb.value;
+                  return (
+                    <button
+                      key={cb.label}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        setComboBudget(cb.value);
+                        handleRollCombo(cb.value);
+                      }}
+                      className={`min-h-[44px] px-3 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap shrink-0 tabular-nums ${
+                        active
+                          ? 'bg-[#FFEAF0] dark:bg-[#3B2531] border-[#FFB6C1] text-[#5B2333] dark:text-[#FFD6E2]'
+                          : 'bg-[#FFFDF8] dark:bg-[#1E171D] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
+                      }`}
+                    >
+                      {cb.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-white dark:from-[#251D24] to-transparent lg:hidden"
+              />
             </div>
 
             {comboResult ? (
@@ -720,7 +830,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       key={`${item.id}-${idx}`}
                       type="button"
                       onClick={() => onSelectFood(item)}
-                      className="text-left rounded-2xl bg-[#FFFDF8] dark:bg-[#1E171D] border border-[#F3E8EE] dark:border-[#3B2E38] overflow-hidden hover:border-[#FFB6C1] transition"
+                      className="text-left rounded-2xl bg-[#FFFDF8] dark:bg-[#1E171D] border border-[#F3E8EE] dark:border-[#3B2E38] overflow-hidden hover:border-[#FFB6C1] transition min-w-0"
                     >
                       <DishImage food={item} className="w-full aspect-[4/3]" />
                       <div className="p-2.5">
@@ -784,7 +894,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     setComboBudget(55000);
                     handleRollCombo(55000);
                   }}
-                  className="min-h-[40px] px-4 rounded-xl bg-[#FFEAF0] dark:bg-[#3B2531] text-[#5B2333] dark:text-[#FFD6E2] text-xs font-bold"
+                  className="min-h-[44px] px-4 rounded-xl bg-[#FFEAF0] dark:bg-[#3B2531] text-[#5B2333] dark:text-[#FFD6E2] text-xs font-bold"
                 >
                   Thử combo ≤ 55k
                 </button>
@@ -794,7 +904,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </div>
 
-      {/* Gợi ý nhanh hợp bộ lọc (luôn tuân thủ ngân sách & thứ tự đã xáo trộn) */}
+      {/* 8. Gợi ý nhanh hợp gu & ngân sách */}
       {visibleSuggestions.length > 0 && (
         <section aria-labelledby="featured-heading" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -805,9 +915,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
               Gợi ý nhanh hợp gu hiện tại
             </h2>
             <span className="text-xs text-[#6E5B65] dark:text-[#CBBBC4] tabular-nums">
-              {maxBudget === null
+              {budget === null
                 ? 'Đã xáo trộn ngẫu nhiên · Chạm để xem'
-                : `Đều có giá ≤ ${formatKPrice(maxBudget)} · Chạm để xem`}
+                : `Đều có giá ≤ ${formatKPrice(budget)} · Chạm để xem`}
             </span>
           </div>
 
@@ -821,7 +931,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 type="button"
                 data-max-price={food.maxPrice}
                 onClick={() => onSelectFood(food)}
-                className="text-left rounded-2xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] overflow-hidden hover:border-[#FFB6C1] transition shadow-xs"
+                className="text-left rounded-2xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] overflow-hidden hover:border-[#FFB6C1] transition shadow-xs min-w-0"
               >
                 <DishImage food={food} className="w-full aspect-[4/3]" />
                 <div className="p-2.5">
@@ -841,8 +951,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </section>
       )}
 
-      {/* Ending message + quiet subtle P/s */}
-      <footer className="pt-2 pb-4 text-center space-y-1.5">
+      {/* Footer nhẹ nhàng */}
+      <footer className="pt-2 pb-2 text-center space-y-1">
         <p className="text-sm font-semibold text-[#57464F] dark:text-[#DFCFD7]">
           Ăn gì cũng được, miễn hôm nay có một bữa thật ngon! 🍜
         </p>

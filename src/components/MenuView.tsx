@@ -1,11 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Heart, Search, X } from 'lucide-react';
-import type { FoodCategory, FoodItem } from '../types/food';
+import type { Budget, FoodCategory, FoodItem, VibeFilterId } from '../types/food';
 import { CATEGORY_LABELS } from '../data/foods';
 import {
+  SAVING_MODE_MAX_BUDGET,
+  VIBE_OPTIONS,
   filterByBudget,
   formatBudgetLabel,
   formatPriceRange,
+  getEffectiveBudget,
+  matchesVibe,
   searchAndFilterMenu,
 } from '../utils/foodLogic';
 import { DishImage } from './DishImage';
@@ -32,13 +36,14 @@ const CATEGORY_ORDER: Array<{ id: FoodCategory | 'all'; label: string }> = [
   { id: 'trang-mieng', label: 'Tráng miệng' },
 ];
 
-const MENU_BUDGETS: Array<{ value: number | null; label: string }> = [
+const MENU_BUDGETS: Array<{ value: Budget; label: string }> = [
   { value: 25000, label: '25k' },
   { value: 35000, label: '35k' },
   { value: 45000, label: '45k' },
   { value: 55000, label: '55k' },
   { value: 75000, label: '75k' },
   { value: 100000, label: '100k' },
+  { value: 150000, label: '150k' },
   { value: null, label: 'Tất cả' },
 ];
 
@@ -54,21 +59,30 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<FoodCategory | 'all'>('all');
   const [onlyVegetarian, setOnlyVegetarian] = useState(false);
-  const [menuBudget, setMenuBudget] = useState<number | null>(null);
+  const [menuBudget, setMenuBudget] = useState<Budget>(null);
+  const [savedBudgetBeforeSaving, setSavedBudgetBeforeSaving] = useState<Budget | undefined>(
+    undefined
+  );
+  const [selectedVibe, setSelectedVibe] = useState<VibeFilterId>('all');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const budgetScopedFoods = useMemo(
-    () => filterByBudget(foods, menuBudget),
-    [foods, menuBudget]
+  const effectiveBudget = useMemo(
+    () => getEffectiveBudget(menuBudget, selectedVibe),
+    [menuBudget, selectedVibe]
+  );
+
+  const scopedFoods = useMemo(
+    () => filterByBudget(foods, effectiveBudget).filter((item) => matchesVibe(item, selectedVibe)),
+    [foods, effectiveBudget, selectedVibe]
   );
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: budgetScopedFoods.length };
-    for (const item of budgetScopedFoods) {
+    const counts: Record<string, number> = { all: scopedFoods.length };
+    for (const item of scopedFoods) {
       counts[item.category] = (counts[item.category] ?? 0) + 1;
     }
     return counts;
-  }, [budgetScopedFoods]);
+  }, [scopedFoods]);
 
   const filteredFoods = useMemo(
     () =>
@@ -77,16 +91,18 @@ export const MenuView: React.FC<MenuViewProps> = ({
         searchQuery,
         selectedCategory,
         onlyVegetarian,
-        menuBudget
+        menuBudget,
+        selectedVibe
       ),
-    [foods, searchQuery, selectedCategory, onlyVegetarian, menuBudget]
+    [foods, searchQuery, selectedCategory, onlyVegetarian, menuBudget, selectedVibe]
   );
 
   const isFiltering =
     searchQuery.trim().length > 0 ||
     selectedCategory !== 'all' ||
     onlyVegetarian ||
-    menuBudget !== null;
+    effectiveBudget !== null ||
+    selectedVibe !== 'all';
   const displayedFoods = isFiltering ? filteredFoods : filteredFoods.slice(0, visibleCount);
   const remainingCount = filteredFoods.length - displayedFoods.length;
 
@@ -95,15 +111,55 @@ export const MenuView: React.FC<MenuViewProps> = ({
     setVisibleCount(PAGE_SIZE);
   };
 
+  const handleBudgetClick = (nextBudget: Budget) => {
+    if (selectedVibe === 'budget' && (nextBudget === null || nextBudget > SAVING_MODE_MAX_BUDGET)) {
+      setSelectedVibe('all');
+      setSavedBudgetBeforeSaving(undefined);
+    }
+    setMenuBudget(nextBudget);
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  const handleToggleVibe = (nextVibeId: VibeFilterId) => {
+    setVisibleCount(PAGE_SIZE);
+    if (selectedVibe === nextVibeId) {
+      setSelectedVibe('all');
+      if (nextVibeId === 'budget' && savedBudgetBeforeSaving !== undefined) {
+        setMenuBudget(savedBudgetBeforeSaving);
+        setSavedBudgetBeforeSaving(undefined);
+      }
+      return;
+    }
+
+    if (nextVibeId === 'budget') {
+      const prior =
+        selectedVibe === 'budget' && savedBudgetBeforeSaving !== undefined
+          ? savedBudgetBeforeSaving
+          : menuBudget;
+      setSavedBudgetBeforeSaving(prior);
+      setMenuBudget(
+        prior !== null && prior < SAVING_MODE_MAX_BUDGET ? prior : SAVING_MODE_MAX_BUDGET
+      );
+      setSelectedVibe('budget');
+      return;
+    }
+
+    if (selectedVibe === 'budget' && savedBudgetBeforeSaving !== undefined) {
+      setMenuBudget(savedBudgetBeforeSaving);
+      setSavedBudgetBeforeSaving(undefined);
+    }
+    setSelectedVibe(nextVibeId);
+  };
+
   return (
     <section aria-labelledby="menu-heading" className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2
             id="menu-heading"
             className="text-xl sm:text-2xl font-bold text-[#2D2229] dark:text-[#FDF7F9] text-balance"
           >
-            120 món ngon, hết lo không biết ăn gì 🍱
+            {foods.length} món ngon, hết lo không biết ăn gì 🍱
           </h2>
           <p className="mt-1 text-sm text-[#6E5B65] dark:text-[#CBBBC4]">
             Thứ tự món được xáo trộn ngẫu nhiên để đỡ bị chán mắt nè.
@@ -124,7 +180,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
       {/* Search & Vegetarian Toggle */}
       <div className="flex flex-col sm:flex-row gap-2.5">
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <label htmlFor="menu-search" className="sr-only">
             Tìm kiếm món ăn theo tên
           </label>
@@ -166,44 +222,92 @@ export const MenuView: React.FC<MenuViewProps> = ({
         </button>
       </div>
 
-      {/* Strict Budget Filter for Menu */}
+      {/* Strict Budget Filter for Menu (1 row horizontal scroll) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-[#4A3B43] dark:text-[#E5D7DF]">
             💸 Lọc theo ngân sách tối đa:
           </span>
           <span className="font-bold tabular-nums text-[#B43456] dark:text-[#FFB6C1]">
-            {formatBudgetLabel(menuBudget)}
+            {formatBudgetLabel(effectiveBudget)}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {MENU_BUDGETS.map((b) => {
-            const active = menuBudget === b.value;
-            return (
-              <button
-                key={b.label}
-                type="button"
-                aria-pressed={active}
-                onClick={() => {
-                  setMenuBudget(b.value);
-                  setVisibleCount(PAGE_SIZE);
-                }}
-                className={`min-h-[44px] px-3 rounded-2xl text-xs font-semibold whitespace-nowrap shrink-0 border transition-colors tabular-nums ${
-                  active
-                    ? 'bg-[#FFB6C1] border-[#F29AA8] text-[#5B2333]'
-                    : 'bg-white dark:bg-[#251D24] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
-                }`}
-              >
-                {b.label}
-              </button>
-            );
-          })}
+        <div className="relative">
+          <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap no-scrollbar pr-4 pb-0.5">
+            {MENU_BUDGETS.map((b) => {
+              const active = effectiveBudget === b.value;
+              return (
+                <button
+                  key={b.label}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => handleBudgetClick(b.value)}
+                  className={`min-h-[44px] px-3 rounded-2xl text-xs font-semibold whitespace-nowrap shrink-0 border transition-colors tabular-nums ${
+                    active
+                      ? 'bg-[#FFB6C1] border-[#F29AA8] text-[#5B2333]'
+                      : 'bg-white dark:bg-[#251D24] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
+                  }`}
+                >
+                  {b.label}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-[#FFFDF8] dark:from-[#1A1419] to-transparent sm:hidden"
+          />
+        </div>
+      </div>
+
+      {/* 8 Gen Z Preference Filter Chips */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-[#4A3B43] dark:text-[#E5D7DF]">
+            ✨ Lọc theo sở thích:
+          </span>
+          {selectedVibe !== 'all' && (
+            <button
+              type="button"
+              onClick={() => handleToggleVibe(selectedVibe)}
+              className="text-[11px] font-semibold text-[#9C3B58] dark:text-[#FFB6C1]"
+            >
+              Bỏ lọc gu
+            </button>
+          )}
+        </div>
+        <div className="relative">
+          <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap no-scrollbar pr-4 pb-0.5">
+            {VIBE_OPTIONS.map((v) => {
+              const active = selectedVibe === v.id;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => handleToggleVibe(v.id)}
+                  className={`min-h-[44px] px-3 rounded-2xl text-xs font-semibold whitespace-nowrap shrink-0 border transition-colors flex items-center gap-1.5 ${
+                    active
+                      ? 'bg-[#EDE3F8] dark:bg-[#3A2B4C] border-[#BFA0E2] text-[#35224A] dark:text-[#EDE2FA]'
+                      : 'bg-white dark:bg-[#251D24] border-[#EADCE3] dark:border-[#3B2E38] text-[#57464F] dark:text-[#D5C5CE]'
+                  }`}
+                >
+                  <span aria-hidden="true">{v.emoji}</span>
+                  <span>{v.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-[#FFFDF8] dark:from-[#1A1419] to-transparent sm:hidden"
+          />
         </div>
       </div>
 
       {/* Category Filter Tabs */}
       <div
-        className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1"
+        className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"
         role="tablist"
         aria-label="Lọc theo nhóm món"
       >
@@ -232,7 +336,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
       {/* Result Count & Helper */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#6E5B65] dark:text-[#CBBBC4]">
         <p className="font-medium tabular-nums">
-          🍜 Có {filteredFoods.length} món phù hợp{menuBudget !== null ? ' với ngân sách của bạn' : ''} (đang hiện {displayedFoods.length})
+          🍜 Có {filteredFoods.length} món phù hợp{effectiveBudget !== null ? ' với ngân sách của bạn' : ''} (đang hiện {displayedFoods.length})
         </p>
         <p className="text-[11px] text-[#8C7782] dark:text-[#B8A5B0]">
           Giá tham khảo, tùy quán và khẩu phần.
@@ -241,9 +345,9 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
       {/* Empty State */}
       {filteredFoods.length === 0 ? (
-        <div className="rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-8 text-center space-y-3">
+        <div className="rounded-3xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] p-6 sm:p-8 text-center space-y-3">
           <p className="text-base font-bold text-[#2D2229] dark:text-[#FDF7F9]">
-            {menuBudget !== null
+            {effectiveBudget !== null
               ? 'Ví tiền hơi thử thách rồi 😆 Thử tăng ngân sách một chút xem sao!'
               : 'Hic, không tìm thấy món nào khớp rồi 🥺'}
           </p>
@@ -251,10 +355,10 @@ export const MenuView: React.FC<MenuViewProps> = ({
             Thử đổi từ khóa, nâng mức ngân sách hoặc bỏ bớt bộ lọc nhé!
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            {menuBudget !== null && menuBudget < 55000 && (
+            {effectiveBudget !== null && effectiveBudget < 55000 && (
               <button
                 type="button"
-                onClick={() => setMenuBudget(55000)}
+                onClick={() => handleBudgetClick(55000)}
                 className="min-h-[44px] px-4 rounded-2xl bg-[#FFEAF0] dark:bg-[#3B2531] border border-[#FFB6C1] text-[#5B2333] dark:text-[#FFD6E2] font-bold text-sm"
               >
                 Tăng ngân sách lên 55k
@@ -267,10 +371,12 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 setSelectedCategory('all');
                 setOnlyVegetarian(false);
                 setMenuBudget(null);
+                setSavedBudgetBeforeSaving(undefined);
+                setSelectedVibe('all');
               }}
               className="min-h-[44px] px-5 rounded-2xl bg-[#FFB6C1] text-[#5B2333] font-bold text-sm"
             >
-              Xem lại toàn bộ 120 món
+              Xem lại toàn bộ {foods.length} món
             </button>
           </div>
         </div>
@@ -283,7 +389,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
               return (
                 <article
                   key={food.id}
-                  className="group relative flex flex-col rounded-2xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] overflow-hidden shadow-xs"
+                  className="group relative flex flex-col rounded-2xl bg-white dark:bg-[#251D24] border border-[#F3E8EE] dark:border-[#3B2E38] overflow-hidden shadow-xs min-w-0"
                 >
                   <button
                     type="button"

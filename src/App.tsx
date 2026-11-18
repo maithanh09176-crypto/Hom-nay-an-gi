@@ -29,6 +29,7 @@ export default function App() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [detailFood, setDetailFood] = useState<FoodItem | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
@@ -37,6 +38,29 @@ export default function App() {
     const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    const checkKeyboard = () => {
+      const activeTag = document.activeElement?.tagName;
+      const isTextFocused =
+        activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+      const vv = window.visualViewport;
+      if (vv && isTextFocused) {
+        setIsKeyboardOpen(vv.height < window.innerHeight * 0.75);
+      } else {
+        setIsKeyboardOpen(false);
+      }
+    };
+
+    window.visualViewport?.addEventListener('resize', checkKeyboard);
+    window.addEventListener('focusin', checkKeyboard);
+    window.addEventListener('focusout', checkKeyboard);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', checkKeyboard);
+      window.removeEventListener('focusin', checkKeyboard);
+      window.removeEventListener('focusout', checkKeyboard);
+    };
   }, []);
 
   useEffect(() => {
@@ -60,7 +84,7 @@ export default function App() {
 
   const handleReshuffleMenu = () => {
     setShuffledFoods(shuffleFoodsFisherYates(FOODS));
-    setToastText('Đã xáo trộn lại thực đơn 120 món rồi nè! 🔀');
+    setToastText(`Đã xáo trộn lại thực đơn ${FOODS.length} món rồi nè! 🔀`);
   };
 
   const handleToggleFavorite = (id: number) => {
@@ -108,15 +132,17 @@ export default function App() {
   return (
     <div className="min-h-dvh bg-[#FFFDF8] dark:bg-[#1A1419] text-[#2D2229] dark:text-[#FDF7F9] transition-colors">
       {/* Compact static top bar (keeps fixed sticky chrome < 10% of mobile viewport) */}
-      <header className="max-w-5xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={() => handleTabChange('home')}
-          className="font-display text-base sm:text-lg font-bold tracking-tight text-[#2D2229] dark:text-[#FDF7F9] whitespace-nowrap shrink-0 min-h-[44px] flex items-center gap-1.5"
-        >
-          <span aria-hidden="true">🍜</span>
-          <span>Nay ăn gì nhỉ?</span>
-        </button>
+      <header className="max-w-5xl mx-auto px-4 pt-3 pb-1.5 flex items-center justify-between gap-2">
+        <h1 className="m-0 min-w-0">
+          <button
+            type="button"
+            onClick={() => handleTabChange('home')}
+            className="font-display text-base sm:text-lg font-bold tracking-tight text-[#2D2229] dark:text-[#FDF7F9] whitespace-nowrap min-h-[44px] flex items-center gap-1.5"
+          >
+            <span aria-hidden="true">🍜</span>
+            <span>Nay ăn gì nhỉ?</span>
+          </button>
+        </h1>
 
         <div className="flex items-center gap-2 shrink-0">
           <PWAInstallButton />
@@ -138,12 +164,12 @@ export default function App() {
         >
           <div className="rounded-2xl bg-[#FFF4D6] dark:bg-[#3A2F1C] border border-[#F2D06B]/60 px-3.5 py-2 text-xs font-semibold text-[#6E4F12] dark:text-[#FCE39D] flex items-center gap-2">
             <WifiOff className="w-4 h-4 shrink-0" />
-            <span>Đang offline — Dữ liệu 120 món và lịch sử vẫn dùng bình thường nha!</span>
+            <span>Đang offline — Dữ liệu {FOODS.length} món và lịch sử vẫn dùng bình thường nha!</span>
           </div>
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto px-4 pt-2 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <main className="app-main max-w-5xl mx-auto px-4 pt-1.5">
         {activeTab === 'home' && (
           <HomeView
             foods={FOODS}
@@ -193,7 +219,7 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] inset-x-4 z-40 flex justify-center pointer-events-none"
+          className="app-toast-container fixed inset-x-4 z-40 flex justify-center pointer-events-none"
         >
           <div className="max-w-sm rounded-2xl bg-[#2D2229] dark:bg-[#FFEAF0] text-[#FFFDF8] dark:text-[#5B2333] px-4 py-2.5 text-xs font-semibold shadow-lg">
             {toastText}
@@ -206,6 +232,7 @@ export default function App() {
         onChangeTab={handleTabChange}
         favoritesCount={favoriteIds.length}
         historyCount={history.length}
+        hiddenForKeyboard={isKeyboardOpen}
       />
 
       <FoodDetailSheet

@@ -1,4 +1,5 @@
 import type {
+  Budget,
   ComboResult,
   FoodCategory,
   FoodItem,
@@ -8,9 +9,11 @@ import type {
   VibeFilterId,
 } from '../types/food';
 
+export const SAVING_MODE_MAX_BUDGET = 35000;
+
 export interface FilterCriteria {
   mode: FoodMode;
-  maxBudget: number | null; // null = không giới hạn (Tất cả)
+  maxBudget: Budget; // null = không giới hạn (Tất cả)
   mealTime: MealTimeFilter;
   vibe: VibeFilterId;
 }
@@ -23,11 +26,11 @@ export const VIBE_OPTIONS: Array<{
   requiredTag: FoodTag | null;
 }> = [
   {
-    id: 'warm',
+    id: 'hot',
     emoji: '🍜',
     label: 'Ăn gì đó nóng nóng',
-    hint: 'Ưu tiên mấy món nước, cháo hoặc đồ nóng hổi ấm bụng.',
-    requiredTag: 'warm',
+    hint: 'Ưu tiên phở, bún, cháo, bánh canh hoặc món nóng hổi ấm bụng.',
+    requiredTag: 'hot',
   },
   {
     id: 'spicy',
@@ -37,45 +40,45 @@ export const VIBE_OPTIONS: Array<{
     requiredTag: 'spicy',
   },
   {
-    id: 'crispy',
+    id: 'fried',
     emoji: '🍗',
     label: 'Thèm đồ chiên',
-    hint: 'Lọc gà rán, khoai chiên, nem rán và các món giòn rụm.',
-    requiredTag: 'crispy',
+    hint: 'Lọc gà rán, khoai chiên, nem rán, phô mai que giòn rụm.',
+    requiredTag: 'fried',
   },
   {
-    id: 'seafood',
+    id: 'snails_seafood',
     emoji: '🐚',
-    label: 'Đi ăn ốc không?',
-    hint: 'Lọc ốc, ngao và các món hải sản.',
-    requiredTag: 'seafood',
+    label: 'Ốc thế nào',
+    hint: 'Lọc ốc luộc, ốc xào me, ngao, sò, hàu và hải sản nhâm nhi.',
+    requiredTag: 'snails_seafood',
   },
   {
     id: 'western',
     emoji: '🍕',
     label: 'Muốn ăn đồ Tây',
-    hint: 'Lọc pizza, hamburger, mì Ý, phô mai que...',
+    hint: 'Lọc pizza, hamburger, mì Ý, hot dog, taco, salad...',
     requiredTag: 'western',
   },
   {
-    id: 'street-food',
+    id: 'street_food',
     emoji: '🛵',
     label: 'Ăn vặt vỉa hè',
-    hint: 'Lọc ốc, bánh tráng, thịt xiên, bánh đúc nóng, bánh rán mặn...',
-    requiredTag: 'street-food',
+    hint: 'Lọc bánh tráng, thịt xiên, nem chua rán, phá lấu, bánh đúc nóng...',
+    requiredTag: 'street_food',
   },
   {
     id: 'budget',
     emoji: '💸',
     label: 'Hôm nay tiết kiệm',
-    hint: 'Lọc các món bình dân cực mềm cho ví sinh viên (≤ 35k).',
-    requiredTag: 'budget',
+    hint: 'Lọc toàn bộ 184 món có giá tối đa ≤ 35k (hoặc giữ mức thấp hơn nếu bạn đã chọn).',
+    requiredTag: null,
   },
   {
     id: 'sweet',
     emoji: '🍧',
     label: 'Thèm ngọt',
-    hint: 'Lọc chè, sữa chua, caramen, kem và món ngọt.',
+    hint: 'Lọc chè, sữa chua, caramen, panna cotta, tiramisu, kem...',
     requiredTag: 'sweet',
   },
 ];
@@ -88,12 +91,20 @@ export function formatPriceRange(minPrice: number, maxPrice: number): string {
   return `${formatKPrice(minPrice)}–${formatKPrice(maxPrice)}`;
 }
 
-export function formatBudgetLabel(maxBudget: number | null): string {
+export function formatBudgetLabel(maxBudget: Budget): string {
   if (maxBudget === null) return 'Tất cả';
   return `${maxBudget.toLocaleString('vi-VN')}đ`;
 }
 
-export function filterByBudget(foods: FoodItem[], budget: number | null): FoodItem[] {
+export function getEffectiveBudget(budget: Budget, vibe: VibeFilterId): Budget {
+  if (vibe !== 'budget') return budget;
+  if (budget !== null && budget < SAVING_MODE_MAX_BUDGET) {
+    return budget;
+  }
+  return SAVING_MODE_MAX_BUDGET;
+}
+
+export function filterByBudget(foods: FoodItem[], budget: Budget): FoodItem[] {
   if (budget === null) return foods;
   return foods.filter((food) => food.maxPrice <= budget);
 }
@@ -106,7 +117,7 @@ export function matchesMode(food: FoodItem, mode: FoodMode): boolean {
 export function matchesVibe(food: FoodItem, vibe: VibeFilterId): boolean {
   if (vibe === 'all') return true;
   if (vibe === 'budget') {
-    return food.tags.includes('budget') || food.maxPrice <= 35000;
+    return food.maxPrice <= SAVING_MODE_MAX_BUDGET;
   }
   const option = VIBE_OPTIONS.find((v) => v.id === vibe);
   if (!option || !option.requiredTag) return true;
@@ -114,8 +125,9 @@ export function matchesVibe(food: FoodItem, vibe: VibeFilterId): boolean {
 }
 
 export function filterFoods(foods: FoodItem[], criteria: FilterCriteria): FoodItem[] {
+  const effectiveBudget = getEffectiveBudget(criteria.maxBudget, criteria.vibe);
   const byMode = foods.filter((food) => matchesMode(food, criteria.mode));
-  const byBudget = filterByBudget(byMode, criteria.maxBudget);
+  const byBudget = filterByBudget(byMode, effectiveBudget);
   return byBudget.filter((food) => {
     if (criteria.mealTime !== 'any' && !food.mealTypes.includes(criteria.mealTime)) {
       return false;
@@ -159,7 +171,7 @@ export function pickRandomFood(
   const recentSet = new Set(recentFoodIds.slice(0, 5));
   let candidates = eligiblePool.filter((item) => !recentSet.has(item.id));
 
-  // If fewer than 1 option remains outside the 5-roll window, allow re-use while avoiding immediate repeat
+  // If all eligible items were recently rolled, avoid immediate repeat when >1 item exists
   if (candidates.length === 0) {
     const immediateLastId = recentFoodIds[0] ?? null;
     candidates =
@@ -168,11 +180,17 @@ export function pickRandomFood(
         : eligiblePool;
   }
 
-  // Prefer avoiding the same category 3 times in a row when other eligible categories exist
+  // Prefer diversity across categories (avoid same category 3 times consecutively when possible)
   if (recentCategories.length >= 2 && recentCategories[0] === recentCategories[1]) {
     const blockedCategory = recentCategories[0];
     const diverseCandidates = candidates.filter((item) => item.category !== blockedCategory);
     if (diverseCandidates.length > 0) {
+      candidates = diverseCandidates;
+    }
+  } else if (recentCategories.length >= 1) {
+    const lastCategory = recentCategories[0];
+    const diverseCandidates = candidates.filter((item) => item.category !== lastCategory);
+    if (diverseCandidates.length >= 3) {
       candidates = diverseCandidates;
     }
   }
@@ -183,7 +201,7 @@ export function pickRandomFood(
 
 export function pickRandomCombo(
   foods: FoodItem[],
-  comboBudget: number | null,
+  comboBudget: Budget,
   lastComboPair: [number, number] | null = null,
   rng: () => number = Math.random
 ): ComboResult | null {
@@ -225,13 +243,16 @@ export function searchAndFilterMenu(
   query: string,
   category: FoodCategory | 'all',
   onlyVegetarian: boolean,
-  maxBudget: number | null = null
+  maxBudget: Budget = null,
+  vibe: VibeFilterId = 'all'
 ): FoodItem[] {
-  const budgetFiltered = filterByBudget(foods, maxBudget);
+  const effectiveBudget = getEffectiveBudget(maxBudget, vibe);
+  const budgetFiltered = filterByBudget(foods, effectiveBudget);
   const normalizedQuery = normalizeVietnamese(query.trim().toLowerCase());
   return budgetFiltered.filter((food) => {
     if (category !== 'all' && food.category !== category) return false;
     if (onlyVegetarian && !food.isVegetarian) return false;
+    if (!matchesVibe(food, vibe)) return false;
     if (!normalizedQuery) return true;
     const normalizedName = normalizeVietnamese(food.name.toLowerCase());
     const normalizedDesc = normalizeVietnamese(food.description.toLowerCase());

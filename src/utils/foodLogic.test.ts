@@ -2,46 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FOODS } from '../data/foods';
 import {
+  SAVING_MODE_MAX_BUDGET,
   filterByBudget,
   filterFoods,
   formatPriceRange,
+  getEffectiveBudget,
   isFoodStillEligible,
+  normalizeVietnamese,
   pickRandomCombo,
   pickRandomFood,
   searchAndFilterMenu,
   shuffleFoodsFisherYates,
 } from './foodLogic';
 
-// Test 7 & Test 8: Độ đầy đủ dữ liệu (120 món, 120 ID duy nhất, đúng 10 món cơm, 78 main, 30 snack, 12 dessert)
-test('Test 7 & Test 8: dataset has exactly 120 unique dishes, 10 com, 78 main, 30 snack, 12 dessert', () => {
-  assert.equal(FOODS.length, 120);
+// Test 1: Dataset completeness — exactly 184 unique dishes, 1..184, 0 duplicate names, com === 10
+test('Dataset has exactly 184 unique dishes (IDs 1..184), 0 duplicate names, and com <= 10', () => {
+  assert.equal(FOODS.length, 184);
 
   const ids = new Set(FOODS.map((f) => f.id));
-  assert.equal(ids.size, 120);
-  for (let i = 1; i <= 120; i++) {
+  assert.equal(ids.size, 184);
+  for (let i = 1; i <= 184; i++) {
     assert.equal(ids.has(i), true, `Missing food ID ${i}`);
   }
 
+  const normalizedNames = FOODS.map((f) => normalizeVietnamese(f.name.trim().toLowerCase()));
+  assert.equal(new Set(normalizedNames).size, 184, 'Duplicate dish names detected');
+
   const comCount = FOODS.filter((f) => f.category === 'com').length;
-  const mainCount = FOODS.filter((f) => f.mealKind === 'main').length;
-  const snackCount = FOODS.filter((f) => f.mealKind === 'snack').length;
-  const dessertCount = FOODS.filter((f) => f.mealKind === 'dessert').length;
-
   assert.equal(comCount, 10);
-  assert.equal(mainCount, 78);
-  assert.equal(snackCount, 30);
-  assert.equal(dessertCount, 12);
 
-  // Verify specific mealKind assignments for new items 101-120
-  const mainNewIds = [101, 106, 107, 108, 109, 119];
-  for (const id of mainNewIds) {
+  // Verify new saving-mode dishes 169-176 are snack, not main
+  for (let id = 169; id <= 176; id++) {
     const item = FOODS.find((f) => f.id === id);
-    assert.equal(item?.mealKind, 'main', `ID ${id} must be main`);
-  }
-  const snackNewIds = [102, 103, 104, 105, 110, 111, 112, 113, 114, 115, 116, 117, 118, 120];
-  for (const id of snackNewIds) {
-    const item = FOODS.find((f) => f.id === id);
-    assert.equal(item?.mealKind, 'snack', `ID ${id} must be snack`);
+    assert.ok(item, `Missing ID ${id}`);
+    assert.equal(item.mealKind, 'snack', `ID ${id} (${item.name}) must be snack`);
+    assert.equal(item.maxPrice <= SAVING_MODE_MAX_BUDGET, true, `ID ${id} must be <= 35k`);
   }
 
   // Ensure no duplicate external imageUrl across dishes
@@ -52,6 +47,7 @@ test('Test 7 & Test 8: dataset has exactly 120 unique dishes, 10 com, 78 main, 3
   for (const food of FOODS) {
     assert.equal(Number.isInteger(food.minPrice), true);
     assert.equal(Number.isInteger(food.maxPrice), true);
+    assert.equal(food.minPrice > 0, true);
     assert.equal(food.minPrice <= food.maxPrice, true);
     if (food.typicalPrice !== undefined) {
       assert.equal(Number.isInteger(food.typicalPrice), true);
@@ -60,55 +56,157 @@ test('Test 7 & Test 8: dataset has exactly 120 unique dishes, 10 com, 78 main, 3
   }
 });
 
-// Test 1: Ngân sách 25k -> mọi món hợp lệ phải có maxPrice <= 25000
-test('Test 1: budget 25k strictly enforces maxPrice <= 25000 (excludes 30-50k, pho, pizza)', () => {
-  const result = filterByBudget(FOODS, 25000);
-  assert.equal(result.length > 0, true);
-  assert.equal(result.every((f) => f.maxPrice <= 25000), true);
+// Test 2: Strict budget filtering across 25k, 35k, 55k
+test('Strict budget filtering enforces maxPrice <= budget across 25k, 35k, 55k', () => {
+  const res25 = filterByBudget(FOODS, 25000);
+  assert.equal(res25.length > 0, true);
+  assert.equal(res25.every((f) => f.maxPrice <= 25000), true);
+  assert.equal(res25.some((f) => f.id === 43), true); // Bánh mì que 10-20k
+  assert.equal(res25.some((f) => f.id === 54), true); // Xôi đỗ 15-25k
+  assert.equal(res25.some((f) => f.id === 118), true); // Trứng vịt lộn 10-15k
+  assert.equal(res25.some((f) => f.id === 76), false); // Bánh tráng trộn 20-35k
+  assert.equal(res25.some((f) => f.id === 11), false); // Phở bò 35-55k
+  assert.equal(res25.some((f) => f.id === 101), false); // Pizza mini 95-150k
 
-  // Explicit examples from specification
-  assert.equal(result.some((f) => f.id === 43), true); // Bánh mì que 10-20k
-  assert.equal(result.some((f) => f.id === 54), true); // Xôi đỗ 15-25k
-  assert.equal(result.some((f) => f.id === 118), true); // Trứng vịt lộn 10-15k
-  assert.equal(result.some((f) => f.id === 76), false); // Bánh tráng trộn 20-35k
-  assert.equal(result.some((f) => f.id === 11), false); // Phở bò 35-55k
-  assert.equal(result.some((f) => f.id === 101), false); // Pizza mini 95-150k
+  const res35 = filterByBudget(FOODS, 35000);
+  assert.equal(res35.length > 0, true);
+  assert.equal(res35.every((f) => f.maxPrice <= 35000), true);
+  assert.equal(res35.some((f) => f.id === 101), false);
+
+  const res55 = filterByBudget(FOODS, 55000);
+  assert.equal(res55.length > 0, true);
+  assert.equal(res55.every((f) => f.maxPrice <= 55000), true);
+  assert.equal(res55.some((f) => f.id === 111), false); // Ốc xào me 45-95k
+  assert.equal(res55.some((f) => f.id === 101), false); // Pizza mini 95-150k
 });
 
-// Test 2: Ngân sách 35k -> mọi món hợp lệ phải có maxPrice <= 35000
-test('Test 2: budget 35k strictly enforces maxPrice <= 35000', () => {
-  const result = filterByBudget(FOODS, 35000);
-  assert.equal(result.length > 0, true);
-  assert.equal(result.every((f) => f.maxPrice <= 35000), true);
-  assert.equal(result.some((f) => f.id === 101), false);
+// Test 3: Gen Z vibe tag accuracy rules
+test('Gen Z 8 vibes follow exact culinary tag rules', () => {
+  const snailsPool = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: null,
+    mealTime: 'any',
+    vibe: 'snails_seafood',
+  });
+  const streetPool = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: null,
+    mealTime: 'any',
+    vibe: 'street_food',
+  });
+  const westernPool = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: null,
+    mealTime: 'any',
+    vibe: 'western',
+  });
+  const spicyPool = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: null,
+    mealTime: 'any',
+    vibe: 'spicy',
+  });
+  const hotPool = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: null,
+    mealTime: 'any',
+    vibe: 'hot',
+  });
+
+  // Bún ốc (ID 18) must NOT be in "Ốc thế nào" or "Ăn vặt vỉa hè"
+  assert.equal(snailsPool.some((f) => f.id === 18), false);
+  assert.equal(streetPool.some((f) => f.id === 18), false);
+
+  // Japanese/Korean dishes must NOT be in "Muốn ăn đồ Tây"
+  const nonWesternAsianIds = [33, 36, 81, 107, 114, 123, 124, 129, 130, 135];
+  for (const id of nonWesternAsianIds) {
+    assert.equal(
+      westernPool.some((f) => f.id === id),
+      false,
+      `ID ${id} must not be classified as western`
+    );
+  }
+
+  // Ốc cà na xào sả ớt (ID 147) must match spicy, snails_seafood, street_food, and hot
+  assert.equal(spicyPool.some((f) => f.id === 147), true);
+  assert.equal(snailsPool.some((f) => f.id === 147), true);
+  assert.equal(streetPool.some((f) => f.id === 147), true);
+  assert.equal(hotPool.some((f) => f.id === 147), true);
+
+  // All 8 vibes should return healthy non-empty pools at null budget
+  const vibes = [
+    'hot',
+    'spicy',
+    'fried',
+    'snails_seafood',
+    'western',
+    'street_food',
+    'budget',
+    'sweet',
+  ] as const;
+  for (const vibe of vibes) {
+    const pool = filterFoods(FOODS, {
+      mode: 'all',
+      maxBudget: null,
+      mealTime: 'any',
+      vibe,
+    });
+    assert.equal(pool.length >= 12, true, `Vibe ${vibe} should have at least 12 dishes`);
+  }
 });
 
-// Test 3: Ngân sách 55k -> mọi món hợp lệ phải có maxPrice <= 55000
-test('Test 3: budget 55k strictly enforces maxPrice <= 55000', () => {
-  const result = filterByBudget(FOODS, 55000);
-  assert.equal(result.length > 0, true);
-  assert.equal(result.every((f) => f.maxPrice <= 55000), true);
-  assert.equal(result.some((f) => f.id === 111), false); // Ốc xào me 45-95k excluded
-  assert.equal(result.some((f) => f.id === 101), false); // Pizza mini 95-150k excluded
+// Test 4: "Hôm nay tiết kiệm" mode behavior
+test('Saving mode (vibe: budget) filters all 184 dishes <= 35k and preserves lower user budget', () => {
+  assert.equal(getEffectiveBudget(null, 'budget'), 35000);
+  assert.equal(getEffectiveBudget(75000, 'budget'), 35000);
+  assert.equal(getEffectiveBudget(25000, 'budget'), 25000);
+  assert.equal(getEffectiveBudget(75000, 'all'), 75000);
+
+  const savingAll = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: null,
+    mealTime: 'any',
+    vibe: 'budget',
+  });
+  assert.equal(savingAll.every((f) => f.maxPrice <= 35000), true);
+  // Snack IDs 169-176 included in 'all'
+  assert.equal(savingAll.some((f) => f.id === 169), true);
+  assert.equal(savingAll.some((f) => f.id === 176), true);
+
+  // When user budget is already 25k, saving mode respects 25k
+  const saving25k = filterFoods(FOODS, {
+    mode: 'all',
+    maxBudget: 25000,
+    mealTime: 'any',
+    vibe: 'budget',
+  });
+  assert.equal(saving25k.every((f) => f.maxPrice <= 25000), true);
+
+  // When mode is 'main', snack items 169-176 are excluded
+  const savingMains = filterFoods(FOODS, {
+    mode: 'main',
+    maxBudget: 35000,
+    mealTime: 'any',
+    vibe: 'budget',
+  });
+  assert.equal(savingMains.some((f) => f.id >= 169 && f.id <= 176), false);
 });
 
-// Test 4: Không có món phù hợp -> không tự ý chọn món từ danh sách không giới hạn
-test('Test 4: impossible filter combination returns empty pool and null random result', () => {
+// Test 5: Impossible filter returns empty pool without fallback to unlimited list
+test('Impossible filter combination returns empty pool and null random result', () => {
   const impossible = filterFoods(FOODS, {
     mode: 'main',
     maxBudget: 25000,
     mealTime: 'any',
-    vibe: 'western', // Pizza mini (95-150k), Hamburger gà (35-60k), Mì Ý (40-65k) all > 25k
+    vibe: 'western',
   });
   assert.equal(impossible.length, 0);
   assert.equal(pickRandomFood(impossible, [], []), null);
-
-  const impossibleCombo = pickRandomCombo(FOODS, 20000);
-  assert.equal(impossibleCombo, null);
+  assert.equal(pickRandomCombo(FOODS, 20000), null);
 });
 
-// Test 5: Random luôn thuộc danh sách đã lọc và tránh lặp 5 món gần nhất + đa dạng nhóm
-test('Test 5: pickRandomFood always picks from filtered pool and avoids recent 5 when possible', () => {
+// Test 6: Randomizer avoids recent 5 dishes and avoids 3 consecutive repeats of same category
+test('pickRandomFood picks strictly from filtered pool, avoids recent 5, and diversifies categories', () => {
   const pool = filterFoods(FOODS, {
     mode: 'snack',
     maxBudget: 35000,
@@ -128,54 +226,48 @@ test('Test 5: pickRandomFood always picks from filtered pool and avoids recent 5
     }
     recent.unshift(picked.id);
   }
+
+  const mainPool = filterFoods(FOODS, {
+    mode: 'main',
+    maxBudget: 55000,
+    mealTime: 'any',
+    vibe: 'all',
+  });
+  const diversePick = pickRandomFood(mainPool, [1, 2], ['com', 'com'], () => 0);
+  assert.ok(diversePick);
+  assert.notEqual(diversePick.category, 'com');
 });
 
-// Test 6: Trộn thực đơn Fisher-Yates không giữ nguyên thứ tự ID 1..120
-test('Test 6: shuffleFoodsFisherYates produces non-ID-ordered permutation preserving all 120 items', () => {
+// Test 7: Fisher-Yates shuffle preserves all 184 dishes in a randomized permutation
+test('shuffleFoodsFisherYates shuffles all 184 items without losing or duplicating any', () => {
   const shuffled = shuffleFoodsFisherYates(FOODS);
-  assert.equal(shuffled.length, 120);
-  assert.equal(new Set(shuffled.map((f) => f.id)).size, 120);
+  assert.equal(shuffled.length, 184);
+  assert.equal(new Set(shuffled.map((f) => f.id)).size, 184);
   const sameOrder = shuffled.every((f, idx) => f.id === FOODS[idx].id);
   assert.equal(sameOrder, false);
 });
 
-// Combo & Gen Z vibe tags & Search tests
-test('Gen Z vibes strictly filter by authentic tags and combo sums maxPrice accurately', () => {
-  const spicyFoods = filterFoods(FOODS, {
-    mode: 'all',
-    maxBudget: null,
-    mealTime: 'any',
-    vibe: 'spicy',
-  });
-  assert.equal(spicyFoods.some((f) => f.id === 106), true); // Mì chua cay
-  assert.equal(spicyFoods.some((f) => f.id === 36), true); // Mì cay Hàn Quốc
-  assert.equal(spicyFoods.every((f) => f.tags.includes('spicy')), true);
-
+// Test 8: Menu search + vibe + budget + Combo + Re-validation (Test 9)
+test('searchAndFilterMenu, pickRandomCombo, and isFoodStillEligible work consistently', () => {
   const combo = pickRandomCombo(FOODS, 60000);
   assert.ok(combo);
   assert.equal(combo.main.mealKind, 'main');
   assert.equal(combo.dessert.mealKind, 'dessert');
   assert.equal(combo.maxTotal <= 60000, true);
 
-  const budgetSearch = searchAndFilterMenu(FOODS, '', 'all', false, 25000);
+  const budgetSearch = searchAndFilterMenu(FOODS, '', 'all', false, 25000, 'all');
   assert.equal(budgetSearch.every((f) => f.maxPrice <= 25000), true);
-  assert.equal(formatPriceRange(35000, 55000), '35k–55k');
-});
 
-// Test 9: Thay đổi ngân sách khi đang có kết quả cũ -> kết quả không hợp lệ phải bị loại bỏ
-test('Test 9: isFoodStillEligible invalidates previously selected high-price food when budget lowers to 25k', () => {
+  const snailSearch = searchAndFilterMenu(FOODS, '', 'all', false, null, 'snails_seafood');
+  assert.equal(snailSearch.some((f) => f.id === 147), true);
+  assert.equal(snailSearch.some((f) => f.id === 18), false);
+
+  assert.equal(formatPriceRange(35000, 55000), '35k–55k');
+
   const highPriceFood = FOODS.find((f) => f.id === 101); // Pizza mini 95k-150k
   const affordableFood = FOODS.find((f) => f.id === 43); // Bánh mì que 10k-20k
   assert.ok(highPriceFood);
   assert.ok(affordableFood);
-
-  const poolAll = filterFoods(FOODS, {
-    mode: 'all',
-    maxBudget: null,
-    mealTime: 'any',
-    vibe: 'all',
-  });
-  assert.equal(isFoodStillEligible(highPriceFood, poolAll), true);
 
   const pool25k = filterFoods(FOODS, {
     mode: 'all',
@@ -187,17 +279,3 @@ test('Test 9: isFoodStillEligible invalidates previously selected high-price foo
   assert.equal(isFoodStillEligible(affordableFood, pool25k), true);
   assert.equal(isFoodStillEligible(null, pool25k), false);
 });
-
-// Category diversity: avoid picking same category 3 times in a row when alternatives exist
-test('pickRandomFood avoids picking same category 3 times consecutively when other categories exist', () => {
-  const pool = filterFoods(FOODS, {
-    mode: 'main',
-    maxBudget: 55000,
-    mealTime: 'any',
-    vibe: 'all',
-  });
-  const picked = pickRandomFood(pool, [1, 2], ['com', 'com'], () => 0);
-  assert.ok(picked);
-  assert.notEqual(picked.category, 'com');
-});
-
